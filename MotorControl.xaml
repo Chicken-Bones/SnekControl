@@ -1,0 +1,99 @@
+﻿<UserControl x:Class="SnekControl.MotorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:SnekControl"
+             xmlns:xctk="http://schemas.xceed.com/wpf/xaml/toolkit"
+             mc:Ignorable="d" 
+             d:DesignHeight="200" d:DesignWidth="520"
+             Background="White">
+    <UserControl.DataContext>
+        <local:MotorControlStage />
+    </UserControl.DataContext>
+    <Grid HorizontalAlignment="Center">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="20" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <local:JoyGrid Grid.RowSpan="2" Width="{Binding Path=ActualHeight, RelativeSource={RelativeSource Self}}" RenderOptions.EdgeMode="Aliased" Margin="15" 
+                       JoyPoint="{Binding TargetPosition}" FeedbackPoint="{Binding Position}" T1="{Binding T0}" T2="{Binding T1}" T3="{Binding T2}" Range="45">
+            <local:JoyGrid.StrainBrush>
+                <LinearGradientBrush EndPoint="1,0.5" MappingMode="RelativeToBoundingBox" StartPoint="0,0.5">
+                    <GradientStop Color="Lime" Offset="0.5"/>
+                    <GradientStop Color="Red" Offset="1"/>
+                    <GradientStop Color="Red"/>
+                    <GradientStop Color="#FFFF9700" Offset="0.9"/>
+                    <GradientStop Color="#FFFF9700" Offset="0.1"/>
+                    <GradientStop Color="#FFFFDC00" Offset="0.7"/>
+                    <GradientStop Color="#FFFFDC00" Offset="0.3"/>
+                </LinearGradientBrush>
+            </local:JoyGrid.StrainBrush>
+        </local:JoyGrid>
+        <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Center">
+            <Label>H:</Label>
+            <xctk:IntegerUpDown Width="50" Height="20" Value="{Binding H}"/>
+            <Label Margin="5,0,0,0">V:</Label>
+            <xctk:IntegerUpDown Width="50" Height="20" Margin="0,0,5,0" Value="{Binding V}"/>
+        </StackPanel>
+        <GroupBox Grid.Row="0" Grid.Column="5" Grid.RowSpan="4" Margin="5,0,5,0" VerticalAlignment="Top" BorderBrush="#FF929EA4" Header="Controls">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition/>
+                </Grid.ColumnDefinitions>
+                <Grid.Resources>
+                    <Style TargetType="{x:Type CheckBox}">
+                        <Setter Property="Margin" Value="2" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                    </Style>
+                    <Style TargetType="{x:Type Button}">
+                        <Setter Property="Margin" Value="2" />
+                    </Style>
+                </Grid.Resources>
+                <CheckBox Grid.Row="0" Grid.Column="0" IsChecked="{Binding DriveServos}">Drive Servos</CheckBox>
+                <Button Grid.Row="0" Grid.Column="1" Command="{Binding ZeroTensionCommand}">Zero Tension</Button>
+                <CheckBox Grid.Row="1" Grid.Column="0" IsChecked="{Binding TensionControlEnabled}">Auto Tension</CheckBox>
+                <Button Grid.Row="1" Grid.Column="1" Command="{Binding RelearnTensionCommand}">Relearn Tension</Button>
+                <CheckBox Grid.Row="2" Grid.Column="0" IsChecked="{Binding ExplorationEnabled}" Content="{Binding ExplorationPercent}" ContentStringFormat="Explore ({0}%)"/>
+                <CheckBox Grid.Row="3" Grid.Column="0" IsChecked="{Binding LearnCableEstimations}">Learn Cables</CheckBox>
+                <Button Grid.Row="3" Grid.Column="1" Command="{Binding RelearnCablesCommand}">Relearn Cables</Button>
+                <CheckBox Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" IsChecked="{Binding LearnTensionDelay}" Content="{Binding TensionDelayMs}" ContentStringFormat="Learn Delay ({0}ms)" />
+            </Grid>
+        </GroupBox>
+        <Label Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" HorizontalAlignment="Right" VerticalAlignment="Center">Offsets:</Label>
+        <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" VerticalAlignment="Center">
+            <Label>Tension:</Label>
+            <xctk:IntegerUpDown Minimum="-90" Maximum="90" Height="20" Width="65" Value="{Binding Tension}"/>
+        </StackPanel>
+        <Label Grid.Row="0" Grid.Column="2" HorizontalAlignment="Center" Padding="0">Up</Label>
+        <Label Grid.Row="0" Grid.Column="3" HorizontalAlignment="Center" Padding="0">Left</Label>
+        <Label Grid.Row="0" Grid.Column="4" HorizontalAlignment="Center" Padding="0">Right</Label>
+        <Slider Grid.Row="1" Grid.Column="2" Orientation="Vertical" Minimum="-90" Maximum="90" SmallChange="1" LargeChange="10" TickFrequency="30" HorizontalAlignment="Center" Value="{Binding M0}"/>
+        <Slider Grid.Row="1" Grid.Column="3" Orientation="Vertical" Minimum="-90" Maximum="90" SmallChange="1" LargeChange="10" TickFrequency="30" HorizontalAlignment="Center" Value="{Binding M1}"/>
+        <Slider Grid.Row="1" Grid.Column="4" Orientation="Vertical" Minimum="-90" Maximum="90" SmallChange="1" LargeChange="10" TickFrequency="30" HorizontalAlignment="Center" Value="{Binding M2}"/>
+        <xctk:IntegerUpDown Grid.Row="2" Grid.Column="2" Minimum="-90" Maximum="90" Height="20" Width="45" Value="{Binding M0}"/>
+        <xctk:IntegerUpDown Grid.Row="2" Grid.Column="3" Minimum="-90" Maximum="90" Height="20" Width="45" Value="{Binding M1}"/>
+        <xctk:IntegerUpDown Grid.Row="2" Grid.Column="4" Minimum="-90" Maximum="90" Height="20" Width="45" Value="{Binding M2}"/>
+        <xctk:IntegerUpDown Grid.Row="3" Grid.Column="2" Minimum="-90" Maximum="90" Height="20" Width="45" Value="{Binding O0}"/>
+        <xctk:IntegerUpDown Grid.Row="3" Grid.Column="3" Minimum="-90" Maximum="90" Height="20" Width="45" Value="{Binding O1}"/>
+        <xctk:IntegerUpDown Grid.Row="3" Grid.Column="4" Minimum="-90" Maximum="90" Height="20" Width="45" Value="{Binding O2}"/>
+    </Grid>
+</UserControl>
