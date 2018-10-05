@@ -44,6 +44,7 @@ namespace SnekControl
 			Graphs.Add(stage0.userInputGraph);
 			Graphs.Add(latencyGraph);
 			Graphs.Add(stage0.inputMagnitude);
+			Graphs.AddRange(stage0.tensionInputs);
 			Graph = Graphs[0];
 
 			latencyGraph.DropOldestCondition = p => p.X < senkConn.SnekTime - 30;

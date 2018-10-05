@@ -53,6 +53,7 @@ namespace SnekControl
 			SetServos,
 			DisableServos,
 			StrainReadings,
+			SetServos2,
 		}
 
 		private SerialControl serial;
@@ -125,6 +126,19 @@ namespace SnekControl
 			p.Write((byte)servo1);
 			p.Write((byte)servo2);
 			p.Write((byte)servo3);
+			SendPacket(p);
+		}
+
+		public void SetServos2(int servo0, int servo1, int servo2, int servo3)
+		{
+			if (!Connected)
+				return;
+
+			var p = new Packet(PacketId.SetServos2);
+			p.Write((short)servo0);
+			p.Write((short)servo1);
+			p.Write((short)servo2);
+			p.Write((short)servo3);
 			SendPacket(p);
 		}
 
@@ -310,6 +324,10 @@ namespace SnekControl
 				case PacketId.SetServos:
 					SnekTime = r.ReadInt32() / 1000d;
 					ServoReading?.Invoke((sbyte)r.ReadByte(), (sbyte)r.ReadByte(), (sbyte)r.ReadByte(), (sbyte)r.ReadByte());
+					break;
+				case PacketId.SetServos2:
+					SnekTime = r.ReadInt32() / 1000d;
+					ServoReading?.Invoke(r.ReadInt16(), r.ReadInt16(), r.ReadInt16(), r.ReadInt16());
 					break;
 				case PacketId.StrainReadings:
 					SnekTime = r.ReadInt32() / 1000d;

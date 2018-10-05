@@ -27,7 +27,7 @@
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
         <local:JoyGrid Grid.RowSpan="2" Width="{Binding Path=ActualHeight, RelativeSource={RelativeSource Self}}" RenderOptions.EdgeMode="Aliased" Margin="15" 
-                       JoyPoint="{Binding TargetPosition}" FeedbackPoint="{Binding Position}" T1="{Binding T0}" T2="{Binding T1}" T3="{Binding T2}" Range="45">
+                       JoyPoint="{Binding TargetPosition}" FeedbackPoint="{Binding ControlPosition}" T1="{Binding T0}" T2="{Binding T1}" T3="{Binding T2}" Range="45">
             <local:JoyGrid.StrainBrush>
                 <LinearGradientBrush EndPoint="1,0.5" MappingMode="RelativeToBoundingBox" StartPoint="0,0.5">
                     <GradientStop Color="Lime" Offset="0.5"/>
@@ -70,18 +70,19 @@
                 </Grid.Resources>
                 <CheckBox Grid.Row="0" Grid.Column="0" IsChecked="{Binding DriveServos}">Drive Servos</CheckBox>
                 <Button Grid.Row="0" Grid.Column="1" Command="{Binding ZeroTensionCommand}">Zero Tension</Button>
-                <CheckBox Grid.Row="1" Grid.Column="0" IsChecked="{Binding TensionControlEnabled}">Auto Tension</CheckBox>
+                <CheckBox Grid.Row="1" Grid.Column="0" IsChecked="{Binding TensionControlEnabled}">Learn Tension</CheckBox>
                 <Button Grid.Row="1" Grid.Column="1" Command="{Binding RelearnTensionCommand}">Relearn Tension</Button>
                 <CheckBox Grid.Row="2" Grid.Column="0" IsChecked="{Binding ExplorationEnabled}" Content="{Binding ExplorationPercent}" ContentStringFormat="Explore ({0}%)"/>
-                <CheckBox Grid.Row="3" Grid.Column="0" IsChecked="{Binding LearnCableEstimations}">Learn Cables</CheckBox>
+                <CheckBox Grid.Row="3" Grid.Column="0" IsChecked="{Binding LearnCableEstimations}" IsEnabled="{Binding ExplorationEnabled}">Learn Cables</CheckBox>
                 <Button Grid.Row="3" Grid.Column="1" Command="{Binding RelearnCablesCommand}">Relearn Cables</Button>
-                <CheckBox Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" IsChecked="{Binding LearnTensionDelay}" Content="{Binding TensionDelayMs}" ContentStringFormat="Learn Delay ({0}ms)" />
+                <CheckBox Grid.Row="4" Grid.Column="0" IsChecked="{Binding WanderingEnabled}">Wander</CheckBox>
+                <CheckBox Grid.Row="4" Grid.Column="1">Record Data</CheckBox>
             </Grid>
         </GroupBox>
         <Label Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" HorizontalAlignment="Right" VerticalAlignment="Center">Offsets:</Label>
         <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" VerticalAlignment="Center">
             <Label>Tension:</Label>
-            <xctk:IntegerUpDown Minimum="-90" Maximum="90" Height="20" Width="65" Value="{Binding Tension}"/>
+            <xctk:IntegerUpDown Minimum="-90" Maximum="90" Height="20" Width="65" Value="{Binding ControlTension}"/>
         </StackPanel>
         <Label Grid.Row="0" Grid.Column="2" HorizontalAlignment="Center" Padding="0">Up</Label>
         <Label Grid.Row="0" Grid.Column="3" HorizontalAlignment="Center" Padding="0">Left</Label>

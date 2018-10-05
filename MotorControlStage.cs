@@ -50,6 +50,12 @@ namespace SnekControl
 	    public readonly Graph minTensionGraph = new Graph {Name = "Min Tension", Limit = 1000};
 	    public readonly Graph userInputGraph = new Graph {Name = "User Input", Limit = 400};
 	    public readonly Graph inputMagnitude = new Graph {Name = "Input Magnitude", Limit = 400};
+
+	    public readonly Graph[] tensionInputs = {
+		    new Graph {Name = "Input Up", Limit = 1000},
+		    new Graph {Name = "Input Left", Limit = 1000},
+		    new Graph {Name = "Input Right", Limit = 1000},
+	    };
 		
 		// three wire
 	    public static Vector[] cableLocations = {
@@ -58,17 +64,17 @@ namespace SnekControl
 		    new Vector(Math.Sin( 2 * Math.PI/3), Math.Cos( 2 * Math.PI/3))
 	    };
 
-	    public Vector Position {
+	    public Vector ControlPosition {
 		    get => CalculatePosition(m);
 		    set {
 			    var mapT = positionTensionMap.Sample(value);
-			    UpdatePositionalControl(value, float.IsNaN(mapT) ? Tension : mapT);
+			    UpdatePositionalControl(value, float.IsNaN(mapT) ? ControlTension : mapT);
 		    }
 	    }
 
-	    public double Tension {
+	    public double ControlTension {
 		    get => (m[0] + m[1] + m[2]) / 3f;
-		    set => UpdatePositionalControl(Position, value);
+		    set => UpdatePositionalControl(ControlPosition, value);
 	    }
 
 	    public Vector CurrentPosition => CalculatePosition(s);
@@ -78,25 +84,25 @@ namespace SnekControl
 
 	    private void UpdatePositionalControl(Vector pos, double t)
 	    {
-		    bool posChanged = pos != Position;
-		    bool tChanged = t != Tension;
+		    bool posChanged = pos != ControlPosition;
+		    bool tChanged = t != ControlTension;
 
 		    m[0] = (float)Vector.Multiply(cableLocations[0], pos) + t;
 		    m[1] = (float)Vector.Multiply(cableLocations[1], pos) + t;
 		    m[2] = (float)Vector.Multiply(cableLocations[2], pos) + t;
 
-		    if (posChanged) OnPropertyChanged("Position");
-			if (tChanged) OnPropertyChanged("Tension");
+		    if (posChanged) OnPropertyChanged(nameof(ControlPosition));
+			if (tChanged) OnPropertyChanged(nameof(ControlTension));
 	    }
 
 	    public int H {
-		    get => (int) Math.Round(Position.X);
-		    set => Position = new Vector(value, Position.Y);
+		    get => (int) Math.Round(ControlPosition.X);
+		    set => ControlPosition = new Vector(value, ControlPosition.Y);
 	    }
 
 	    public int V {
-		    get => (int) Math.Round(Position.Y);
-		    set => Position = new Vector(Position.X, value);
+		    get => (int) Math.Round(ControlPosition.Y);
+		    set => ControlPosition = new Vector(ControlPosition.X, value);
 	    }
 
 	    private bool _driveServos;
@@ -154,21 +160,27 @@ namespace SnekControl
 		    get => explorationPercent;
 			set => SetProp(ref explorationPercent, value);
 	    }
+
+	    private bool _wanderingEnabled;
+	    public bool WanderingEnabled {
+		    get => _wanderingEnabled;
+		    set {
+			    if (value == _wanderingEnabled)
+				    return;
+
+			    _wanderingEnabled = value;
+			    OnPropertyChanged();
+
+			    if (_wanderingEnabled)
+				    StartWandering();
+		    }
+	    }
 		
 	    public double MinTension => t.Min();
 	    public double MaxTension => t.Max();
 	    public double TotalTension => t.Sum();
 		
 	    public bool LearnCableEstimations { get; set; }
-
-	    private bool learnTensionDelay;
-	    public bool LearnTensionDelay {
-		    get => learnTensionDelay;
-		    set {
-			    if (SetProp(ref learnTensionDelay, value) && value)
-				    ResetDelayEstimation();
-		    }
-	    }
 
 	    public static readonly Rect posDomainRect = new Rect(-30, -30, 60, 60);
 	    public readonly LoessSurface positionTensionMap = new LoessSurface(1, 8, posDomainRect);
@@ -187,18 +199,9 @@ namespace SnekControl
 		    cableTensionEstimation[0].Sample(pos),
 		    cableTensionEstimation[1].Sample(pos),
 		    cableTensionEstimation[2].Sample(pos));
-			
-
-	    private double tensionDelay;
-	    public double TensionDelay {
-		    get => tensionDelay;
-		    set => SetProp(ref tensionDelay, value);
-	    }
-	    public Vector TensionDelayedPosition => HistoricalPosition(TensionDelay);
-	    public Vector3 ExpectedTension => EstimateTensionAt(TensionDelayedPosition);
+		
+	    public Vector3 ExpectedTension => EstimateTensionAt(CurrentPosition);
 	    public Vector TensionInput => GetTensionInput(t, ExpectedTension);
-
-	    public int TensionDelayMs => (int)Math.Round(TensionDelay * 1000);
 
 	    private Vector targetPosition;
 	    public Vector TargetPosition {
@@ -240,12 +243,12 @@ namespace SnekControl
 
 		    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
-		    if (propertyName == "Position") {
+		    if (propertyName == nameof(ControlPosition)) {
 			    OnPropertyChanged("H");
 			    OnPropertyChanged("V");
 		    }
 
-		    if (propertyName == "Tension" || propertyName == "Position") {
+		    if (propertyName == nameof(ControlTension) || propertyName == nameof(ControlPosition)) {
 			    OnPropertyChanged("M0");
 			    OnPropertyChanged("M1");
 			    OnPropertyChanged("M2");
@@ -256,16 +259,25 @@ namespace SnekControl
 				    SendServoSignals();
 
 			    if (propertyName[0] == 'M') {
-				    OnPropertyChanged("Position");
-				    OnPropertyChanged("Tension");
+				    OnPropertyChanged(nameof(ControlPosition));
+				    OnPropertyChanged(nameof(ControlTension));
 			    }
 
 			    if (propertyName[0] == 'O')
 				    settings?.SetOffsets(Index, mOffset);
 		    }
 
-		    if (propertyName == "TensionDelay")
-			    OnPropertyChanged("TensionDelayMs");
+			if (propertyName == nameof(ExplorationEnabled)) {
+				if ((bool)curValue)
+					WanderingEnabled = false;
+				else
+					LearnCableEstimations = false;
+			}
+
+			if (propertyName == nameof(WanderingEnabled)) {
+				if ((bool)curValue)
+					ExplorationEnabled = false;
+			}
 	    }
 
 	    private bool SetProp<T>(ref T field, T value, [CallerMemberName] string propertyName = null)
@@ -285,14 +297,16 @@ namespace SnekControl
 	    private SnekConnection snekConn;
 	    private double lastConnChangeTime;
 
+		const bool USE_SERVO_MINUTES = true;
 	    private int GetServoSignal(int i)
 	    {
-	        int s = (int)Math.Round(m[i]) + mOffset[i];
+			const int scale = USE_SERVO_MINUTES ? 60 : 1;
+	        int s = (int)Math.Round(m[i]*scale) + mOffset[i]*scale;
 	        if (i <= 0)
 	            s = -s;
 
-		    if (s < -90) s = -90;
-		    if (s > 90) s = 90;
+		    if (s < -90*scale) s = -90*scale;
+		    if (s > 90*scale) s = 90*scale;
             return s;
 	    }
 		
@@ -312,7 +326,11 @@ namespace SnekControl
 		    if (signal0 == lastSent[0] && signal1 == lastSent[1] && signal2 == lastSent[2])
 			    return;
 			
-		    snekConn.SetServos(0, signal0, signal1, signal2);
+			if (USE_SERVO_MINUTES)
+				snekConn.SetServos2(0, signal0, signal1, signal2);
+			else
+				snekConn.SetServos(0, signal0, signal1, signal2);
+
 		    lastSent[0] = signal0;
 		    lastSent[1] = signal1;
 		    lastSent[2] = signal2;
@@ -337,15 +355,22 @@ namespace SnekControl
 		    TensionReading(2, mv3);
 
 		    minTensionGraph.AddPoint(new Point(snekConn.SnekTime, MinTension));
-		    userInputGraph.AddPoint((Point)TensionInput);
-		    UpdateDelayEstimation();
+			
+			var expectedTension = ExpectedTension;
+			var tensionInput = GetTensionInput(t, expectedTension);
+		    userInputGraph.AddPoint((Point)tensionInput);
+			inputMagnitude.AddPoint(new Point(snekConn.SnekTime, tensionInput.Length));
+
+			for (int i = 0; i < 3; i++)
+				tensionInputs[i].AddPoint(new Point(snekConn.SnekTime, t[i] - expectedTension[i]));
 	    }
 
 	    private void ServoReading(int servo0, int servo1, int servo2, int servo3)
 	    {
-		    s[0] = -servo1 - mOffset[0];
-		    s[1] = servo2 - mOffset[1];
-		    s[2] = servo3 - mOffset[2];
+			const float scale = USE_SERVO_MINUTES ? 60 : 1;
+		    s[0] = -servo1/scale - mOffset[0];
+		    s[1] = servo2/scale - mOffset[1];
+		    s[2] = servo3/scale - mOffset[2];
 			OnPropertyChanged("CurrentPosition");
 		    for (int i = 0; i < 3; i++) {
 			    var g = motorGraphs[i];
@@ -471,6 +496,9 @@ namespace SnekControl
 
 	    private double HistoricalValue(Graph graph, double delay)
 	    {
+			if (snekConn == null)
+			    return double.NaN;
+
 		    double targetTime = snekConn.SnekTime - delay;
 		    Point? prev_ = null, next_ = null;
 		    graph.SeekBackward(p => {
@@ -527,11 +555,11 @@ namespace SnekControl
 				    }
 
 				    if (MinTension < 1 && TotalTension < 12)
-					    Tension++;
+					    ControlTension++;
 					else if (MinTension > 2)
-					    Tension--;
+					    ControlTension--;
 					else if (!dataPointRecorded) {
-					    positionTensionMap.Add(Position, (float)Tension);
+					    positionTensionMap.Add(ControlPosition, (float)ControlTension);
 					    dataPointRecorded = true;
 				    }
 					Thread.Sleep(1);
@@ -550,69 +578,6 @@ namespace SnekControl
 		    cableTensionEstimation[2].Clear();
 	    }
 
-	    private const double MAX_DELAY = 0.5;
-		private readonly double[] delayEstimationErrors = new double[50];
-	    private void UpdateDelayEstimation()
-	    {
-		    if (!LearnTensionDelay)
-			    return;
-
-			var sampledMotorHistory = new double[delayEstimationErrors.Length][];
-			for (int j = 0; j < delayEstimationErrors.Length; j++)
-				sampledMotorHistory[j] = new double[3];
-
-		    for (int i = 0; i < 3; i++) {
-			    int j = 0;
-			    var delay = j * MAX_DELAY / delayEstimationErrors.Length;
-			    var g = motorGraphs[i];
-			    bool enoughHistory = g.SeekBackward(p => {
-				    while (p.X <= snekConn.SnekTime - delay) {
-					    sampledMotorHistory[j][i] = p.Y;
-					    if (++j == delayEstimationErrors.Length)
-						    return true;
-
-					    delay = j * MAX_DELAY / delayEstimationErrors.Length;
-				    }
-
-				    return false;
-			    });
-
-			    if (!enoughHistory)
-				    return;
-		    }
-
-			ResetDelayEstimation();
-		    int minIndex = 0;
-		    double min = double.MaxValue;
-			var estimationCache = new Dictionary<Vector, Vector3>();
-		    var points = new List<Point>();
-		    for (int j = 0; j < delayEstimationErrors.Length; j++) {
-			    var p = CalculatePosition(sampledMotorHistory[j]);
-			    if (!estimationCache.TryGetValue(p, out var expectedTension))
-				    expectedTension = estimationCache[p] = EstimateTensionAt(p);
-
-			    var error = GetTensionInput(t, expectedTension).LengthSquared;
-			    delayEstimationErrors[j] += error;
-			    points.Add(new Point(-j * MAX_DELAY / delayEstimationErrors.Length, error));
-
-			    if (delayEstimationErrors[j] < min) {
-				    min = delayEstimationErrors[j];
-				    minIndex = j;
-			    }
-		    }
-
-		    inputMagnitude.SetPoints(points);
-		    TensionDelay = minIndex * MAX_DELAY / delayEstimationErrors.Length;
-	    }
-
-	    private void ResetDelayEstimation()
-	    {
-		    for (int j = 0; j < delayEstimationErrors.Length; j++)
-			    delayEstimationErrors[j] = 0;
-
-		    TensionDelay = 0;
-	    }
-
 	    private bool isExploring;
 	    private void StartExploring()
 	    {
@@ -626,13 +591,13 @@ namespace SnekControl
 		    }
 	    }
 		
+		private const int explorationRadius = 20;
 	    private List<Vector> targetPositions = new List<Vector>();
 	    private int targetPositionCount = 0;
 	    private void Explore()
 	    {
 		    try {
 			    var rand = new Random();
-			    int radius = 20;
 			    var tMean = new float[3];
 			    while (ExplorationEnabled) {
 				    if (IsTargetting || snekConn.SnekTime - lastServoSignalTime < 0.2 || !IsSettled(tMean, true)) {
@@ -641,17 +606,17 @@ namespace SnekControl
 				    }
 
 				    if (LearnCableEstimations) {
-					    cableTensionEstimation[0].Add(Position, tMean[0]);
-					    cableTensionEstimation[1].Add(Position, tMean[1]);
-					    cableTensionEstimation[2].Add(Position, tMean[2]);
+					    cableTensionEstimation[0].Add(ControlPosition, tMean[0]);
+					    cableTensionEstimation[1].Add(ControlPosition, tMean[1]);
+					    cableTensionEstimation[2].Add(ControlPosition, tMean[2]);
 				    }
 
 				    if (targetPositions.Count == 0) {
 					    Logger.Log("Starting Exploration Pass");
-					    for (int i = -radius; i <= radius; i++) {
-						    for (int j = -radius; j <= radius; j++) {
+					    for (int i = -explorationRadius; i <= explorationRadius; i++) {
+						    for (int j = -explorationRadius; j <= explorationRadius; j++) {
 							    var v = new Vector(i, j);
-								if (v.Length <= radius)
+								if (v.Length <= explorationRadius)
 									targetPositions.Add(v);
 						    }
 					    }
@@ -695,34 +660,112 @@ namespace SnekControl
 		    return true;
 	    }
 
+		private const float targetVelocityCap = 20;
+		private const int retargettingPeriod = 10;
+		private object targettingLock = new object();
 	    private async void MoveToTarget()
 	    {
-		    lock (this) {
+		    lock (targettingLock) {
 			    if (IsTargetting)
 				    return;
 
 			    IsTargetting = true;
 		    }
-
+			
+			var maxStep = retargettingPeriod / 1000f * targetVelocityCap;
 		    while (true) {
 			    var target = targetPosition;
 			    var currentTarget = target;
-			    var pos = Position;
+			    var pos = ControlPosition;
 			    var delta = target - pos;
-			    if (delta.Length > 2) {
-				    delta /= delta.Length;
+			    if (delta.Length > maxStep) {
+				    delta *= maxStep / delta.Length;
 				    currentTarget = delta + pos;
 			    }
 
-			    Position = currentTarget;
-			    await Task.Delay(100);
+			    ControlPosition = currentTarget;
+			    await Task.Delay(retargettingPeriod);
 
-			    lock (this) {
+			    lock (targettingLock) {
 				    if (currentTarget == targetPosition) {
 					    IsTargetting = false;
 					    return;
 				    }
 			    }
+		    }
+	    }
+
+	    private bool isWandering;
+	    private void StartWandering()
+	    {
+		    if (!isWandering) {
+			    isWandering = true;
+			    new Thread(Wander) {
+				    Name = "Wander",
+				    Priority = ThreadPriority.Highest,
+				    IsBackground = true
+			    }.Start();
+		    }
+	    }
+		
+	    private void Wander()
+	    {
+			const int updatePeriod = 20;
+		    try {
+			    var rand = new Random();
+				int modeChangePeriod = 20*1000;
+				var lastModeChange = new Stopwatch();
+				lastModeChange.Start();
+
+				int jerkiness = 50; //0-100
+				int sleepiness = 0;//chance to stop per second (0-100)
+				Vector wanderPosition = new Vector();
+				double currentAngle = 0;
+
+			    while (WanderingEnabled) {
+
+					if ((CurrentPosition - wanderPosition).Length < 2) {
+						do {
+							wanderPosition = new Vector(rand.Next(-explorationRadius, explorationRadius+1), rand.Next(-explorationRadius, explorationRadius+1));
+						} while (wanderPosition.Length > explorationRadius);
+					}
+
+					if (rand.Next(100 * (1000/updatePeriod)) < sleepiness) {
+						TargetPosition = CurrentPosition;
+						Thread.Sleep(rand.Next(200, 200 + (100-sleepiness)*3));//more absentmindedness, lower stop time
+					}
+
+					var targetDirection = wanderPosition - CurrentPosition;
+					var targetAngle = Math.Atan2(targetDirection.Y, targetDirection.X);
+					var degreesPerSecond = 90 * Math.Pow(10, jerkiness/100d);//degrees per second (90-900)
+					var angleChangeCap = (degreesPerSecond * updatePeriod / 1000) * Math.PI / 180;
+					var angleChange = targetAngle - currentAngle;
+					if (Math.Abs(angleChange) > Math.PI)
+						angleChange -= 2*Math.PI*Math.Sign(angleChange);
+					if (Math.Abs(angleChange) > angleChangeCap)
+						angleChange = Math.Sign(angleChange) * angleChangeCap;
+
+					currentAngle += angleChange;
+					targetDirection = new Vector(Math.Cos(currentAngle), Math.Sin(currentAngle)) * targetDirection.Length;
+					var target = CurrentPosition + targetDirection;
+					if (target.Length > explorationRadius)
+						target *= explorationRadius / target.Length;
+
+					TargetPosition = target;
+					
+					if (lastModeChange.ElapsedMilliseconds > modeChangePeriod)
+					{
+						jerkiness = rand.Next(100);
+						sleepiness = rand.Next(100);
+						Logger.Log($"Wandering (Jerkiness: {jerkiness}, Sleepiness: {sleepiness})");
+						lastModeChange.Restart();
+					}
+				    Thread.Sleep(updatePeriod);
+			    }
+		    }
+		    finally {
+			    isWandering = false;
+			    WanderingEnabled = false;
 		    }
 	    }
     }
