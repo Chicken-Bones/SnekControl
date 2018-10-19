@@ -5,8 +5,6 @@ VisualStudioVersion = 15.0.27703.2042
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SnekControl", "SnekControl.csproj", "{69F28D3F-B009-4653-8A81-D1789BFEF137}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SerialPortStream-net45", "C:\Users\cb\Desktop\temp\SerialPortStream\code\SerialPortStream-net45.csproj", "{CEA01148-CD2E-4F29-B455-B557B9B4C6D4}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

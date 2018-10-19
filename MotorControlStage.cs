@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -155,10 +156,10 @@ namespace SnekControl
 		    }
 	    }
 
-		private int explorationPercent;
+		private int _explorationPercent;
 	    public int ExplorationPercent {
-		    get => explorationPercent;
-			set => SetProp(ref explorationPercent, value);
+		    get => _explorationPercent;
+			set => SetProp(ref _explorationPercent, value);
 	    }
 
 	    private bool _wanderingEnabled;
@@ -174,6 +175,12 @@ namespace SnekControl
 			    if (_wanderingEnabled)
 				    StartWandering();
 		    }
+	    }
+
+		private bool _recordData;
+	    public bool RecordData {
+		    get => _recordData;
+			set => SetProp(ref _recordData, value);
 	    }
 		
 	    public double MinTension => t.Min();
@@ -200,8 +207,19 @@ namespace SnekControl
 		    cableTensionEstimation[1].Sample(pos),
 		    cableTensionEstimation[2].Sample(pos));
 		
-	    public Vector3 ExpectedTension => EstimateTensionAt(CurrentPosition);
+	    public Vector3 ExpectedTension => UseMLTension ?
+			mlTensionModel.Eval(snekConn.SnekTime, motorGraphs) :
+			EstimateTensionAt(CurrentPosition);
+
 	    public Vector TensionInput => GetTensionInput(t, ExpectedTension);
+
+		private bool _useMLTension;
+		public bool UseMLTension { 
+			get => _useMLTension;
+			set => SetProp(ref _useMLTension, value);
+		}
+
+		private MLTensionModel mlTensionModel;
 
 	    private Vector targetPosition;
 	    public Vector TargetPosition {
@@ -363,9 +381,11 @@ namespace SnekControl
 
 			for (int i = 0; i < 3; i++)
 				tensionInputs[i].AddPoint(new Point(snekConn.SnekTime, t[i] - expectedTension[i]));
+
+			RecordDataPoint(snekConn.SnekTime, s, t, CurrentPosition, expectedTension, tensionInput);
 	    }
 
-	    private void ServoReading(int servo0, int servo1, int servo2, int servo3)
+		private void ServoReading(int servo0, int servo1, int servo2, int servo3)
 	    {
 			const float scale = USE_SERVO_MINUTES ? 60 : 1;
 		    s[0] = -servo1/scale - mOffset[0];
@@ -394,6 +414,8 @@ namespace SnekControl
 		    cableTensionEstimation[0].BindSettings("cable0", settings);
 		    cableTensionEstimation[1].BindSettings("cable1", settings);
 		    cableTensionEstimation[2].BindSettings("cable2", settings);
+
+			mlTensionModel = new MLTensionModel("../../data_analysis/model0.onnx");
 	    }
 
 	    public void ConnectTo(SnekConnection snek)
@@ -475,6 +497,7 @@ namespace SnekControl
 				    UpdatePositionalControl(new Vector(), i);
 				    await Task.Delay(100);
 			    }
+				ControlPosition = new Vector();
 		    }
 		    catch (HistoryUnavailableException) {
 			    Logger.Log("Zeroing Cancelled");
@@ -718,7 +741,7 @@ namespace SnekControl
 				lastModeChange.Start();
 
 				int jerkiness = 50; //0-100
-				int sleepiness = 0;//chance to stop per second (0-100)
+				int sleepiness = 0; //chance to stop per second (0-100)
 				Vector wanderPosition = new Vector();
 				double currentAngle = 0;
 
@@ -730,9 +753,9 @@ namespace SnekControl
 						} while (wanderPosition.Length > explorationRadius);
 					}
 
-					if (rand.Next(100 * (1000/updatePeriod)) < sleepiness) {
+					if (rand.Next(50 * (1000/updatePeriod)) < sleepiness) {//50 instead of 100 because I wanted more sleeps
 						TargetPosition = CurrentPosition;
-						Thread.Sleep(rand.Next(200, 200 + (100-sleepiness)*3));//more absentmindedness, lower stop time
+						Thread.Sleep(rand.Next(200, 200 + (100-sleepiness)*30));//more absentmindedness, lower stop time
 					}
 
 					var targetDirection = wanderPosition - CurrentPosition;
@@ -768,5 +791,25 @@ namespace SnekControl
 			    WanderingEnabled = false;
 		    }
 	    }
+
+		private TextWriter dataWriter;
+		private void RecordDataPoint(double snekTime, double[] servos, double[] tension, Vector currentPosition, Vector3 expectedTension, Vector inputPosition)
+		{
+			if (!RecordData)
+				return;
+
+			if (dataWriter == null)
+			{
+				dataWriter = new StreamWriter($"{DateTime.Now:yyyy-MM-dd HH-mm}.csv");
+				dataWriter.WriteLine("time, motor1, motor2, motor3, tension1, tension2, tension3, input1, input2, input3, posX, posY, inputX, inputY");
+			}
+			var inputTension = new Vector3((float)tension[0], (float)tension[1], (float)tension[2]) - expectedTension;
+			dataWriter.WriteLine($"{snekTime:0.000}, " +
+				$"{servos[0]:0.00}, {servos[1]:0.00}, {servos[2]:0.00}, " +
+				$"{tension[0]:0.000}, {tension[1]:0.000}, {tension[2]:0.000}, " +
+				$"{inputTension[0]:0.000}, {inputTension[1]:0.000}, {inputTension[2]:0.000}, " +
+				$"{currentPosition.X:0.00}, {currentPosition.Y:0.00}, " +
+				$"{inputPosition.X:0.00}, {inputPosition.Y:0.00}");
+		}
     }
 }

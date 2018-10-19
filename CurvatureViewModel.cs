@@ -38,14 +38,14 @@ namespace SnekControl
 				Geometry = BuildGrid()
 			});
 
-			var mat = PhongMaterials.Brass.Clone();
+			var mat = PhongMaterials.Brass.CloneMaterial();
 			mat.DiffuseColor = new Color4((Color3)mat.DiffuseColor, 0.9f);
 			Items.Add(_model = new MeshGeometryModel3D {
 				Material = mat,
 				CullMode = CullMode.Back
 			});
 
-			mat = mat.Clone();
+			mat = mat.CloneMaterial();
 			mat.DiffuseColor = new Color4(1, 0, 0, 0.5f);
 			Items.Add(_deflectionModel = new MeshGeometryModel3D {
 				Material = mat,

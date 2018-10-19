@@ -72,11 +72,12 @@
                 <Button Grid.Row="0" Grid.Column="1" Command="{Binding ZeroTensionCommand}">Zero Tension</Button>
                 <CheckBox Grid.Row="1" Grid.Column="0" IsChecked="{Binding TensionControlEnabled}">Learn Tension</CheckBox>
                 <Button Grid.Row="1" Grid.Column="1" Command="{Binding RelearnTensionCommand}">Relearn Tension</Button>
-                <CheckBox Grid.Row="2" Grid.Column="0" IsChecked="{Binding ExplorationEnabled}" Content="{Binding ExplorationPercent}" ContentStringFormat="Explore ({0}%)"/>
-                <CheckBox Grid.Row="3" Grid.Column="0" IsChecked="{Binding LearnCableEstimations}" IsEnabled="{Binding ExplorationEnabled}">Learn Cables</CheckBox>
-                <Button Grid.Row="3" Grid.Column="1" Command="{Binding RelearnCablesCommand}">Relearn Cables</Button>
-                <CheckBox Grid.Row="4" Grid.Column="0" IsChecked="{Binding WanderingEnabled}">Wander</CheckBox>
-                <CheckBox Grid.Row="4" Grid.Column="1">Record Data</CheckBox>
+                <CheckBox Grid.Row="2" Grid.Column="0" IsChecked="{Binding LearnCableEstimations}" IsEnabled="{Binding ExplorationEnabled}">Learn Cables</CheckBox>
+                <Button Grid.Row="2" Grid.Column="1" Command="{Binding RelearnCablesCommand}">Relearn Cables</Button>
+                <CheckBox Grid.Row="3" Grid.Column="0" IsChecked="{Binding ExplorationEnabled}" Content="{Binding ExplorationPercent}" ContentStringFormat="Explore ({0}%)"/>
+                <CheckBox Grid.Row="3" Grid.Column="1" IsChecked="{Binding WanderingEnabled}">Wander</CheckBox>
+                <CheckBox Grid.Row="4" Grid.Column="0" IsChecked="{Binding UseMLTension}">RNN Cables</CheckBox>
+                <CheckBox Grid.Row="4" Grid.Column="1" IsChecked="{Binding RecordData}">Record Data</CheckBox>
             </Grid>
         </GroupBox>
         <Label Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" HorizontalAlignment="Right" VerticalAlignment="Center">Offsets:</Label>
