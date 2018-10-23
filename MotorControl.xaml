@@ -27,7 +27,7 @@
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
         <local:JoyGrid Grid.RowSpan="2" Width="{Binding Path=ActualHeight, RelativeSource={RelativeSource Self}}" RenderOptions.EdgeMode="Aliased" Margin="15" 
-                       JoyPoint="{Binding TargetPosition}" FeedbackPoint="{Binding ControlPosition}" T1="{Binding T0}" T2="{Binding T1}" T3="{Binding T2}" Range="45">
+                       JoyPoint="{Binding TargetPosition}" FeedbackPoint="{Binding ControlPosition}" T1="{Binding T0}" T2="{Binding T1}" T3="{Binding T2}" Range="30">
             <local:JoyGrid.StrainBrush>
                 <LinearGradientBrush EndPoint="1,0.5" MappingMode="RelativeToBoundingBox" StartPoint="0,0.5">
                     <GradientStop Color="Lime" Offset="0.5"/>

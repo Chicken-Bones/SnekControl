@@ -414,8 +414,9 @@ namespace SnekControl
 		    cableTensionEstimation[0].BindSettings("cable0", settings);
 		    cableTensionEstimation[1].BindSettings("cable1", settings);
 		    cableTensionEstimation[2].BindSettings("cable2", settings);
-
-			mlTensionModel = new MLTensionModel("../../data_analysis/model0.onnx");
+			
+			//mlTensionModel = new MLTensionModel("data_analysis/model_opt2.onnx");
+			mlTensionModel = new MLTensionModel("data_analysis/vgg_model.onnx");
 	    }
 
 	    public void ConnectTo(SnekConnection snek)
@@ -577,7 +578,7 @@ namespace SnekControl
 					    continue;
 				    }
 
-				    if (MinTension < 1 && TotalTension < 12)
+				    if (MinTension < 1.5 && TotalTension < 12)
 					    ControlTension++;
 					else if (MinTension > 2)
 					    ControlTension--;
