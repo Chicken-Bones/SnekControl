@@ -1,0 +1,20 @@
+hidden_dim	depth	batch_size	learning_rate	MSE
+32			1		10000		1e-2			0.053 (epoch 4000)
+32			1		10000		1e-1			0.07 (early cancel)
+32			1		10000		1e-2			0.056 (epoch 780)
+64			1		10000		2e-3			0.053 (epoch 500)
+64 			2		2000		1e-3			0.044 (epoch 2000)
+64 			2		2000		1e-3			0.042 (epoch 4400) (learning rate decrease to 1e-4)
+step learning implemented, also on full dataset, MSE reported for first cable, learning deemed acceptable
+64 			2		2000		1e-3			0.066 (epoch 560)
+128 		1		10000		2e-3 (*0.5/500ep)	0.055 (epoch 2500)	[0.05539349 0.08081346 0.19049026]
+128 		1		10000		2e-3 (*0.5/1000ep)	0.052 (epoch 4000)	[0.05261095 0.08400381 0.18022285]
+
+Epoch 3860 MSE Train: 0.1235, Test 0.1061 [0.0538 0.0832 0.1813]
+	LSTM 128x1, Linear [32, 3], SGD lr=5.00e-03 * 0.50 per 1000 epochs, batch size: 10000
+
+Epoch 2840 MSE Train: 0.1186, Test 0.1026 [0.0509 0.0788 0.1782]
+	LSTM 64x2, Linaer [3], SGD lr=5.00e-03 * 0.50 per 1000 epochs, batch size: 10000
+
+Epoch 180 MSE Train: 0.1244, Test 0.1544 [0.06   0.1024 0.3008]
+	Sigmoid Linear [128, 3], SGD lr=1.00e-03 * 0.50 per 1000 epochs, batch size: 10000

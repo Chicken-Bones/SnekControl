@@ -51,7 +51,7 @@ output_dim = data_y.shape[1]
 # data parameters
 seq_len = 100
 test_size = 0.2
-batch_size = 5000
+batch_size = 10000
 
 # test train split and batching
 indices = np.arange(seq_len, num_datapoints)
@@ -60,7 +60,7 @@ num_train = int((1-test_size) * num_datapoints)
 num_test = num_datapoints - num_train
 
 np.random.seed(0)
-test_indices = indices[100000:100000+num_test]#np.sort(np.random.choice(indices, num_test, replace=False))
+test_indices = np.sort(np.random.choice(indices, num_test, replace=False))
 train_indices = np.delete(indices, test_indices - seq_len)
 
 logger.info("data loaded %dx%d, batch size: %d", num_datapoints, input_dim, batch_size)
@@ -71,7 +71,7 @@ logger.info("baseline MSE %.4f", np.mean(np.square(baseline_err)))
 #####################
 # Network params
 #####################
-lstm_dim = 256
+lstm_dim = 64
 lstm_layers = 1
 linear_dim = [output_dim]
 learning_rate = 5e-3
