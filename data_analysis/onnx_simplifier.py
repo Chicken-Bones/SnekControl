@@ -45,12 +45,28 @@ def node_with_output(graph, output_name):
         (i for i in graph.input if i.name == output_name)))
 
 
+def nodes_with_input(graph, input_name):
+    return [n for n in graph.node if any(i == input_name for i in n.input)]
+
+
+def is_output_used(graph, name):
+    return any(name in n.input for n in graph.node) or any(o.name == name for o in graph.output)
+
+
+def replace_input_name(graph, name1, name2):
+    for n in graph.node:
+        with repeatedlist(n.input) as l:
+            for i in range(len(l)):
+                if l[i] == name1:
+                    l[i] = name2
+
+
 def value_info_by_name(graph, name):
     return next(x for x in itertools.chain(graph.input, graph.value_info) if x.name == name)
 
 
 def attr_by_name(node, name):
-    return next (a for a in node.attribute if a.name == name)
+    return next(a for a in node.attribute if a.name == name)
 
 
 def get_constant_arr(node):
@@ -60,6 +76,10 @@ def get_constant_arr(node):
 
 def get_info_tensor_shape(value_info):
     return np.array([d.dim_value for d in value_info.type.tensor_type.shape.dim])
+
+
+def is_constant_node(nodeorvalueinfo):
+    return isinstance(nodeorvalueinfo, NodeProto) and nodeorvalueinfo.op_type == "Constant"
 
 
 def make_constant_node(arr, output=[]):
@@ -94,7 +114,7 @@ def constant_ops(graph, i, n):
         return False
 
     input_nodes = [node_with_output(graph, i) for i in n.input]
-    if not all(isinstance(i, NodeProto) and i.op_type == "Constant" for i in input_nodes):
+    if not all(is_constant_node(i) for i in input_nodes):
         return False
 
     if n.op_type == "Gather":
@@ -170,8 +190,32 @@ def initializers_to_constants(graph, *_):
     return True
 
 
-def is_output_used(graph, name):
-    return any(name in n.input for n in graph.node) or any(o.name == name for o in graph.output)
+def lstm_final_hidden(graph, i, n):
+    if n.op_type != "LSTM":
+        return False
+
+    def is_gather_last(n):
+        if n.op_type != "Gather" or attr_by_name(n, "axis").i != 0:
+            return False
+
+        indices_input = node_with_output(graph, n.input[1])
+        if not is_constant_node(indices_input):
+            return False
+        indices = get_constant_arr(indices_input)
+        return indices == -1
+
+
+    def is_squeeze(n, axes):
+        return n.op_type == "Squeeze" and attr_by_name(n, "axes").ints == axes
+
+    changed = False
+    for node1 in [n for n in nodes_with_input(graph, n.output[0]) if is_squeeze(n, [1])]:
+        for node2 in [n for n in nodes_with_input(graph, node1.output[0]) if is_gather_last(n)]:
+            replace_input_name(graph, node2.output[0], n.output[1])
+            print("LSTM Squeeze %s Gather %s -> Hidden %s" % (node1.output, node2.output, n.output[1]))
+            changed = True
+
+    return changed
 
 
 def remove_redundant_nodes(graph):
@@ -201,6 +245,7 @@ def processs_model(model):
     model = graph_pass(model, initializers_to_constants)
     model = graph_pass(model, shape_to_constant)
     model = graph_pass(model, constant_ops)
+    model = graph_pass(model, lstm_final_hidden)
 
     result2 = caffe_backend.run_model(model, [dummy_input])[0]
     if not np.isclose(result1, result2).all():

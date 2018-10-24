@@ -40,9 +40,9 @@ def create_lstm_forward(graph, node):
             gates = np.dot(x, np.transpose(W)) + np.dot(H, np.transpose(R)) + B
             i, o, f, c = np.split(gates, 4, -1)
             i = sigmoid(i)
+            o = sigmoid(o)
             f = sigmoid(f)
             c = np.tanh(c)
-            o = sigmoid(o)
             C = f * C + i * c
             H = o * np.tanh(C)
 
@@ -118,4 +118,4 @@ if __name__ == '__main__':
     if not np.isclose(result1, result2).all():
         raise Exception("model is not consistent: {} {}".format(result1, result2))
 
-    print('Forward Test Passed')
+    print('Forward Test Passed %s' % result2)

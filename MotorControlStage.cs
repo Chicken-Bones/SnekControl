@@ -415,8 +415,7 @@ namespace SnekControl
 		    cableTensionEstimation[1].BindSettings("cable1", settings);
 		    cableTensionEstimation[2].BindSettings("cable2", settings);
 			
-			//mlTensionModel = new MLTensionModel("data_analysis/model_opt2.onnx");
-			mlTensionModel = new MLTensionModel("data_analysis/vgg_model.onnx");
+			mlTensionModel = new MLTensionModel("data_analysis/model_s.onnx");
 	    }
 
 	    public void ConnectTo(SnekConnection snek)
