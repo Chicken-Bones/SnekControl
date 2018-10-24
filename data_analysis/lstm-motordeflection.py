@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import print_function, division
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
@@ -33,11 +33,30 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #####################
 # Load data
 #####################
-data = np.genfromtxt('2018-10-05 14-07.csv', dtype=np.float32, delimiter=',', skip_header=1)
-data = data[300000:700100, :]
+seq_len = 100
+test_size = 0.2
+batch_size = 10000
 
-#reduce data
-#data = data[:100100, :]
+data = None
+indices = None
+
+
+def add_dataset(name):
+    global data, indices
+    set_data = np.genfromtxt(name, dtype=np.float32, delimiter=',', skip_header=1)
+    set_inds = np.arange(seq_len, set_data.shape[0])
+    if data is None:
+        data = set_data
+        indices = set_inds
+    else:
+        indices = np.append(indices, data.shape[0] + set_inds)
+        data = np.concatenate((data, set_data))
+
+    logger.info("loaded %s (%d points)", name, set_data.shape[0])
+
+
+add_dataset('2018-10-24 14-03.csv')
+add_dataset('2018-10-24 15-32.csv')
 
 data_x = data[:, 1:4]
 data_y = data[:, 4:7]
@@ -45,27 +64,25 @@ baseline_err = data[:, 7:10]
 baseline_err -= np.mean(baseline_err, axis=0).reshape(1, -1)
 baseline_y = data_y - baseline_err
 
-num_datapoints, input_dim = data_x.shape
+input_dim = data_x.shape[1]
 output_dim = data_y.shape[1]
 
-# data parameters
-seq_len = 100
-test_size = 0.2
-batch_size = 10000
-
 # test train split and batching
-indices = np.arange(seq_len, num_datapoints)
 num_datapoints = len(indices)
-num_train = int((1-test_size) * num_datapoints)
-num_test = num_datapoints - num_train
+num_batches = num_datapoints // batch_size
+num_train_batches = int((1-test_size) * num_batches)
+num_test_batches = num_batches - num_train_batches
 
 np.random.seed(0)
-test_indices = np.sort(np.random.choice(indices, num_test, replace=False))
-train_indices = np.delete(indices, test_indices - seq_len)
+test_batches = np.sort(np.random.choice(range(0, num_batches), num_test_batches, replace=False))
+train_batches = np.delete(range(0, num_batches), test_batches)
 
-logger.info("data loaded %dx%d, batch size: %d", num_datapoints, input_dim, batch_size)
-logger.info("train %d test %d", num_train, num_test)
+logger.info("train %d test %d", num_train_batches * batch_size, num_test_batches * batch_size)
 logger.info("baseline MSE %.4f", np.mean(np.square(baseline_err)))
+
+
+def batch_indices(batch):
+    return indices[batch*batch_size:(batch+1)*batch_size]
 
 
 #####################
@@ -80,6 +97,7 @@ num_epochs = 10000
 #####################
 # Define model
 #####################
+
 
 class LSTMModel(nn.Module):
     def __init__(self, input_dim, lstm_dim, lstm_layers, linear_dim):
@@ -146,14 +164,15 @@ logger.info("SGD lr=%.2e * %.2f per %d epochs", learning_rate, scheduler.gamma, 
 # if LSTM (seq_len, batch, input_dim)
 # if Linear (batch, seq_len*input_dim)
 # linear input is repeated input_dim for each timestep, [[t_0] [t_1] ...]
-def make_data_tensors(indices):
+def make_batch_tensors(batch):
+    inds = batch_indices(batch)
     if isinstance(model, LSTMModel):
-        X = np.concatenate([data_x[i-seq_len:i, None, :] for i in indices], 1)
+        X = np.concatenate([data_x[i-seq_len:i, None, :] for i in inds], 1)
     else:
-        X = np.stack([data_x[i-seq_len:i, :].flatten() for i in indices])
+        X = np.stack([data_x[i-seq_len:i, :].flatten() for i in inds])
 
     X = torch.from_numpy(X).to(device)
-    y = torch.from_numpy(data_y[indices, :]).to(device)
+    y = torch.from_numpy(data_y[inds, :]).to(device)
     return X, y
 
 
@@ -180,16 +199,15 @@ def export_model(filename, verbose=False):
     onnx.save(onnx_model, filename.replace(".onnx", "_opt.onnx"))
 
 
-def plot_preds_vs_data(y_pred, y_data, filename, len = 10000):
-        plt.figure(figsize=(100, 10 * output_dim))
-        y_pred = y_pred.cpu().detach().numpy()[:len]
-        y_data = y_data.cpu().detach().numpy()[:len]
-        y_baseline = baseline_y[test_indices][:len]
+def plot_preds_vs_data(y_pred, y_data, y_base, filename):
+        plt.figure(figsize=(batch_size / 100, 10 * output_dim))
+        y_pred = y_pred.cpu().detach().numpy()
+        y_data = y_data.cpu().detach().numpy()
         for p in range(3):
             plt.subplot(output_dim, 1, p + 1)
             plt.plot(y_pred[:, p], label="Preds")
             plt.plot(y_data[:, p], label="Data")
-            plt.plot(y_baseline[:, p], label="Baseline")
+            plt.plot(y_base[:, p], label="Baseline")
             plt.legend()
         plt.savefig(filename, dpi=100)
         plt.close()
@@ -203,11 +221,41 @@ hist_train = []
 hist_test_x = []
 hist_test_y = []
 
+
+def plot_loss_hist():
+    hist_test_x.append(t)
+    hist_test_y.append(loss_test_total)
+    plt.semilogy(hist_train[:t], label="Training loss")
+    plt.semilogy(hist_test_x, hist_test_y, label="Test loss")
+    plt.legend()
+    plt.savefig(dir + "/loss.png")
+    plt.close()
+
+
+def dump_preds():
+    logger.info("performing full eval")
+    dump = np.zeros((num_batches * batch_size, 1 + input_dim + 2 * output_dim))
+    for batch in range(0, num_batches):
+        inds = batch_indices(batch)
+        X, _ = make_batch_tensors(batch)
+        y_pred = model(X).cpu().detach().numpy()
+
+        j = batch * batch_size
+        dump[j:j+batch_size, 0] = data[inds, 0]
+        dump[j:j+batch_size, 1:4] = data_x[inds, :]
+        dump[j:j+batch_size, 4:7] = data_y[inds, :]
+        dump[j:j+batch_size, 7:10] = y_pred
+
+    logger.info("saving eval.csv")
+    np.savetxt(dir+'/eval.csv', dump, fmt='%.4f', delimiter=', ')
+    logger.info("complete")
+
+
 for t in range(num_epochs):
     scheduler.step()
     model.train()
-    for batch_start in range(0, num_train, batch_size):
-        X_train, y_train = make_data_tensors(train_indices[batch_start:batch_start+batch_size])
+    for batch in train_batches:
+        X_train, y_train = make_batch_tensors(batch)
 
         optimiser.zero_grad()
         y_pred = model(X_train)
@@ -221,8 +269,8 @@ for t in range(num_epochs):
         with torch.no_grad():
             y_preds = []
             y_tests = []
-            for batch_start in range(0, num_test, batch_size):
-                X_test, y_test = make_data_tensors(test_indices[batch_start:batch_start+batch_size])
+            for batch in test_batches:
+                X_test, y_test = make_batch_tensors(batch)
                 y_preds.append(model(X_test))
                 y_tests.append(y_test)
 
@@ -237,15 +285,13 @@ for t in range(num_epochs):
             export_model(dir+'/model.onnx')
 
             # update histogram
-            hist_test_x.append(t)
-            hist_test_y.append(loss_test_total)
-            plt.semilogy(hist_train[:t], label="Training loss")
-            plt.semilogy(hist_test_x, hist_test_y, label="Test loss")
-            plt.legend()
-            plt.savefig(dir + "/loss.png")
-            plt.close()
+            plot_loss_hist()
 
             if t < 100 or t % 100 == 0:
-                plot_preds_vs_data(y_pred, y_test, dir+"/test%d.png" % t)
+                y_base = baseline_y[batch_indices(test_batches[0])]
+                plot_preds_vs_data(y_preds[0], y_tests[0], y_base, dir+"/test%d.png" % t)
+
+        if t % 1000 == 0:
+            dump_preds()
 
 
