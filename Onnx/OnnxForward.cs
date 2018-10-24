@@ -33,15 +33,13 @@ namespace SnekControl.Onnx
 			
 			var hidden_dim = B.Count / 8;
 			B = B.SubVector(0, 4 * hidden_dim) + B.SubVector(4 * hidden_dim, 4 * hidden_dim);
-			W = W.Transpose();
-			R = R.Transpose();
 
 			return outputs => {
 				var X = outputs[input];
 				var H = H0;
 				var C = C0;
 				foreach (var x in X.EnumerateRows()) {
-					var gates = x * W + H * R + B;
+					var gates = W * x + R * H + B;
 					var i = Sigmoid(gates.SubVector(0 * hidden_dim, hidden_dim));
 					var o = Sigmoid(gates.SubVector(1 * hidden_dim, hidden_dim));
 					var f = Sigmoid(gates.SubVector(2 * hidden_dim, hidden_dim));
