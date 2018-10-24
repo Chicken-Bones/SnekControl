@@ -1,6 +1,7 @@
 ﻿using MathNet.Numerics;
 using MathNet.Numerics.LinearAlgebra;
 using Onnx;
+using SharpDX;
 using SnekControl.Onnx;
 using System;
 using System.Diagnostics;
@@ -11,13 +12,17 @@ namespace SnekControl
 	public class MLTensionModel
 	{
 		const int seq_len = 100;
-		const float dt = 1f/seq_len;
-
-		public readonly Func<Matrix<float>, Matrix<float>> forward;
+		const float update_rate = 100; //Hz
+		const float dt = 1/update_rate;
 
 		static MLTensionModel() {
 			Control.UseNativeMKL();
 		}
+
+		public readonly Func<Matrix<float>, Matrix<float>> forward;
+
+		private double cached_time;
+		private Vector3 cached_eval;
 		
 		public MLTensionModel(string path) {
 			using (var stream = File.OpenRead(path)) {
@@ -28,6 +33,9 @@ namespace SnekControl
 		}
 
 		internal SharpDX.Vector3 Eval(double snek_time, Graph[] motorGraphs) {
+			if (snek_time == cached_time)
+				return cached_eval;
+			
 			var input = new float[seq_len, 3];
 			for (int m = 0; m < 3; m++) {
 				int i = 0;
@@ -41,11 +49,13 @@ namespace SnekControl
 				});
 
 				if (i < seq_len)
-					return new SharpDX.Vector3(float.NaN);
+					return new Vector3(float.NaN);
 			}
 			
 			var v = forward(Matrix<float>.Build.DenseOfArray(input)).Row(0);
-			return new SharpDX.Vector3(v[0], v[1], v[2]);
+
+			cached_time = snek_time;
+			return cached_eval = new Vector3(v[0], v[1], v[2]);
 		}
 
 		public void Test() {
