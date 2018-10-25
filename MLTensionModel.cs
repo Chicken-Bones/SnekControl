@@ -32,7 +32,7 @@ namespace SnekControl
 			Test();
 		}
 
-		internal SharpDX.Vector3 Eval(double snek_time, Graph[] motorGraphs) {
+		internal Vector3 Eval(double snek_time, Graph[] motorGraphs) {
 			if (snek_time == cached_time)
 				return cached_eval;
 			
@@ -41,7 +41,7 @@ namespace SnekControl
 				int i = 0;
 				motorGraphs[m].SeekBackward(p => {
 					while (p.X < snek_time - i*dt) {
-						input[i, m] = (float)p.Y;
+						input[seq_len - i - 1, m] = (float)p.Y;
 						if (++i == seq_len)
 							return true;
 					}

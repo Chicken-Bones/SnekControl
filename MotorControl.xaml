@@ -54,6 +54,7 @@
                     <RowDefinition/>
                     <RowDefinition/>
                     <RowDefinition/>
+                    <RowDefinition/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition/>
@@ -78,6 +79,7 @@
                 <CheckBox Grid.Row="3" Grid.Column="1" IsChecked="{Binding WanderingEnabled}">Wander</CheckBox>
                 <CheckBox Grid.Row="4" Grid.Column="0" IsChecked="{Binding UseMLTension}">RNN Cables</CheckBox>
                 <CheckBox Grid.Row="4" Grid.Column="1" IsChecked="{Binding RecordData}">Record Data</CheckBox>
+                <CheckBox Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2" IsChecked="{Binding CompliantMotion}">Compliant Motion</CheckBox>
             </Grid>
         </GroupBox>
         <Label Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" HorizontalAlignment="Right" VerticalAlignment="Center">Offsets:</Label>

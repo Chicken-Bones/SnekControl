@@ -182,6 +182,12 @@ namespace SnekControl
 		    get => _recordData;
 			set => SetProp(ref _recordData, value);
 	    }
+
+		private bool _compliantMotion;
+	    public bool CompliantMotion {
+		    get => _compliantMotion;
+			set => SetProp(ref _compliantMotion, value);
+	    }
 		
 	    public double MinTension => t.Min();
 	    public double MaxTension => t.Max();
@@ -383,6 +389,7 @@ namespace SnekControl
 				tensionInputs[i].AddPoint(new Point(snekConn.SnekTime, t[i] - expectedTension[i]));
 
 			RecordDataPoint(snekConn.SnekTime, s, t, CurrentPosition, expectedTension, tensionInput);
+			UpdateCompliantMotion(tensionInput);
 	    }
 
 		private void ServoReading(int servo0, int servo1, int servo2, int servo3)
@@ -683,7 +690,7 @@ namespace SnekControl
 		    return true;
 	    }
 
-		private const float targetVelocityCap = 20;
+		private float targetVelocityCap = 40;
 		private const int retargettingPeriod = 10;
 		private object targettingLock = new object();
 	    private async void MoveToTarget()
@@ -810,6 +817,25 @@ namespace SnekControl
 				$"{inputTension[0]:0.000}, {inputTension[1]:0.000}, {inputTension[2]:0.000}, " +
 				$"{currentPosition.X:0.00}, {currentPosition.Y:0.00}, " +
 				$"{inputPosition.X:0.00}, {inputPosition.Y:0.00}");
+		}
+
+		public float PositionLimit = 25;
+		public float InputThreshold = 0.7f;
+		public float InputScale = 1.5f;
+		private void UpdateCompliantMotion(Vector tensionInput) {
+			if (!CompliantMotion)
+				return;
+
+			var inputMagnitude = tensionInput.Length;
+			if (inputMagnitude > InputThreshold) {
+				var force = (inputMagnitude - InputThreshold) * InputScale;
+				var delta = tensionInput / tensionInput.Length * force;
+				var target = CurrentPosition + delta;
+				if (target.Length > PositionLimit)
+					target *= PositionLimit / target.Length;
+
+				TargetPosition = target;
+			}
 		}
     }
 }

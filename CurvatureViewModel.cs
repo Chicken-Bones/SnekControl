@@ -75,9 +75,8 @@ namespace SnekControl
 		{
 			if (snekStage == null)
 				return;
-
-			var pos = snekStage.HistoricalPosition(0.1);
-			var tube = CreateTube(pos, out var endPoint);
+			
+			var tube = CreateTube(snekStage.CurrentPosition, out var endPoint);
 			var deflectionTube = CreateTube(snekStage.CurrentPosition + snekStage.TensionInput, out _, true);
 			
 			var lb = new LineBuilder();

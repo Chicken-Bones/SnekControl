@@ -9,14 +9,6 @@ namespace SnekControl
 {
 	public class WPFGraph : FrameworkElement
 	{
-		public static readonly DependencyProperty MaxPointsProperty = DependencyProperty.Register(
-			nameof(MaxPoints), typeof(int), typeof(WPFGraph), new PropertyMetadata(1000));
-
-		public int MaxPoints {
-			get => (int)GetValue(MaxPointsProperty);
-			set => SetValue(MaxPointsProperty, value);
-		}
-
 		public static readonly DependencyProperty TickSpacingProperty = DependencyProperty.Register(
 			nameof(TickSpacing), typeof(float), typeof(WPFGraph),
 			new PropertyMetadata(100f));
