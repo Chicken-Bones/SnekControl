@@ -203,10 +203,13 @@ namespace SnekControl
 		    new LoessSurface(1, 8, posDomainRect),
 	    };
 
-	    private Vector GetTensionInput(double[] t, Vector3 expectedTension) =>
-		    -cableLocations[0] * (t[0] - expectedTension.X) +
-		    -cableLocations[1] * (t[1] - expectedTension.Y) +
-		    -cableLocations[2] * (t[2] - expectedTension.Z);
+		private Vector3 ExternalTension(double[] t, Vector3 expectedTension) =>
+		    new Vector3((float)(t[0] - expectedTension.X), (float)(t[1] - expectedTension.Y), (float)(t[2] - expectedTension.Z));
+
+	    private Vector GetTensionInput(Vector3 externalTension) =>
+		    -cableLocations[0] * externalTension.X +
+		    -cableLocations[1] * externalTension.Y +
+		    -cableLocations[2] * externalTension.Z;
 
 	    private Vector3 EstimateTensionAt(Vector pos) => new Vector3(
 		    cableTensionEstimation[0].Sample(pos),
@@ -217,7 +220,7 @@ namespace SnekControl
 			mlTensionModel.Eval(snekConn.SnekTime, motorGraphs) :
 			EstimateTensionAt(CurrentPosition);
 
-	    public Vector TensionInput => GetTensionInput(t, ExpectedTension);
+	    public Vector TensionInput { get; private set; }
 
 		private bool _useMLTension;
 		public bool UseMLTension { 
@@ -381,15 +384,16 @@ namespace SnekControl
 		    minTensionGraph.AddPoint(new Point(snekConn.SnekTime, MinTension));
 			
 			var expectedTension = ExpectedTension;
-			var tensionInput = GetTensionInput(t, expectedTension);
-		    userInputGraph.AddPoint((Point)tensionInput);
-			inputMagnitude.AddPoint(new Point(snekConn.SnekTime, tensionInput.Length));
+			var externalTension = ExternalTension(t, expectedTension);
+			TensionInput = GetTensionInput(externalTension);
+		    userInputGraph.AddPoint((Point)TensionInput);
+			inputMagnitude.AddPoint(new Point(snekConn.SnekTime, TensionInput.Length));
 
 			for (int i = 0; i < 3; i++)
 				tensionInputs[i].AddPoint(new Point(snekConn.SnekTime, t[i] - expectedTension[i]));
 
-			RecordDataPoint(snekConn.SnekTime, s, t, CurrentPosition, expectedTension, tensionInput);
-			UpdateCompliantMotion(tensionInput);
+			RecordDataPoint(snekConn.SnekTime, s, t, CurrentPosition, expectedTension, TensionInput);
+			UpdateCompliantMotion(externalTension);
 	    }
 
 		private void ServoReading(int servo0, int servo1, int servo2, int servo3)
@@ -819,23 +823,31 @@ namespace SnekControl
 				$"{inputPosition.X:0.00}, {inputPosition.Y:0.00}");
 		}
 
-		public float PositionLimit = 25;
-		public float InputThreshold = 0.7f;
-		public float InputScale = 1.5f;
-		private void UpdateCompliantMotion(Vector tensionInput) {
+		private void UpdateCompliantMotion(Vector3 externalTension) {
 			if (!CompliantMotion)
 				return;
+			
+			const float limitA = -10;
+			const float limitB = 20;
+			const float threshold = 0.8f;
+			const float scale = -20f;
 
-			var inputMagnitude = tensionInput.Length;
-			if (inputMagnitude > InputThreshold) {
-				var force = (inputMagnitude - InputThreshold) * InputScale;
-				var delta = tensionInput / tensionInput.Length * force;
-				var target = CurrentPosition + delta;
-				if (target.Length > PositionLimit)
-					target *= PositionLimit / target.Length;
+			bool any = false;
+			for (int i = 0; i < 3; i++) {
+				var deltaT = externalTension[i];
+				if (float.IsNaN(deltaT) || deltaT > -threshold && deltaT < threshold)
+					continue;
 
-				TargetPosition = target;
+				var deltaM =  (deltaT - threshold * Math.Sign(deltaT)) * scale;
+				m[i] += deltaM / 100f;
+				if (m[i] < limitA) m[i] = limitA;
+				if (m[i] > limitB) m[i] = limitB;
+
+				any = true;
 			}
+
+			if (any)
+				OnPropertyChanged("ControlPosition");
 		}
     }
 }
