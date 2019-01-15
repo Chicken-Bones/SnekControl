@@ -393,7 +393,7 @@ namespace SnekControl
 				tensionInputs[i].AddPoint(new Point(snekConn.SnekTime, t[i] - expectedTension[i]));
 
 			RecordDataPoint(snekConn.SnekTime, s, t, CurrentPosition, expectedTension, TensionInput);
-			UpdateCompliantMotion(externalTension);
+			UpdateCompliantMotion(expectedTension, externalTension);
 	    }
 
 		private void ServoReading(int servo0, int servo1, int servo2, int servo3)
@@ -826,7 +826,7 @@ namespace SnekControl
 				$"{inputPosition.X:0.00}, {inputPosition.Y:0.00}");
 		}
 
-		private void UpdateCompliantMotion(Vector3 externalTension) {
+		private void UpdateCompliantMotion(Vector3 expectedTension, Vector3 externalTension) {
 			if (!CompliantMotion)
 				return;
 			
@@ -838,6 +838,9 @@ namespace SnekControl
 			bool any = false;
 			for (int i = 0; i < 3; i++) {
 				var deltaT = externalTension[i];
+				if (expectedTension[i] < threshold*1.5f) //ensure at cables remain tensioned
+					deltaT += expectedTension[i] - threshold*1.5f;
+
 				if (float.IsNaN(deltaT) || deltaT > -threshold && deltaT < threshold)
 					continue;
 
