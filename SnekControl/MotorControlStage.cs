@@ -694,7 +694,8 @@ namespace SnekControl
 		    return true;
 	    }
 
-		private float targetVelocityCap = 40;
+		private const float maxVelocity = 40;
+		private float targetVelocityCap = maxVelocity;
 		private const int retargettingPeriod = 10;
 		private object targettingLock = new object();
 	    private async void MoveToTarget()
@@ -747,7 +748,7 @@ namespace SnekControl
 			const int updatePeriod = 20;
 		    try {
 			    var rand = new Random();
-				int modeChangePeriod = 20*1000;
+				int modeChangePeriod = 15*1000;
 				var lastModeChange = new Stopwatch();
 				lastModeChange.Start();
 
@@ -791,7 +792,8 @@ namespace SnekControl
 					{
 						jerkiness = rand.Next(100);
 						sleepiness = rand.Next(100);
-						Logger.Log($"Wandering (Jerkiness: {jerkiness}, Sleepiness: {sleepiness})");
+						targetVelocityCap = (float)(rand.NextDouble() * 0.75 + 0.25) * maxVelocity;
+						Logger.Log($"Wandering (Jerkiness: {jerkiness}, Sleepiness: {sleepiness}, Velocity: {(int)targetVelocityCap})");
 						lastModeChange.Restart();
 					}
 				    Thread.Sleep(updatePeriod);
@@ -800,6 +802,7 @@ namespace SnekControl
 		    finally {
 			    isWandering = false;
 			    WanderingEnabled = false;
+				targetVelocityCap = maxVelocity;
 		    }
 	    }
 
