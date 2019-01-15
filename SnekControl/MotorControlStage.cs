@@ -188,6 +188,8 @@ namespace SnekControl
 		    get => _compliantMotion;
 			set => SetProp(ref _compliantMotion, value);
 	    }
+
+		public float CompliantThreshold {get; set;} = 0.8f;
 		
 	    public double MinTension => t.Min();
 	    public double MaxTension => t.Max();
@@ -832,19 +834,18 @@ namespace SnekControl
 			
 			const float limitA = -10;
 			const float limitB = 20;
-			const float threshold = 0.8f;
 			const float scale = -20f;
 
 			bool any = false;
 			for (int i = 0; i < 3; i++) {
 				var deltaT = externalTension[i];
-				if (expectedTension[i] < threshold*1.5f) //ensure at cables remain tensioned
-					deltaT += expectedTension[i] - threshold*1.5f;
+				if (expectedTension[i] < 1.5f) //ensure at cables remain tensioned
+					deltaT += expectedTension[i] - 1.5f;
 
-				if (float.IsNaN(deltaT) || deltaT > -threshold && deltaT < threshold)
+				if (float.IsNaN(deltaT) || deltaT > -CompliantThreshold && deltaT < CompliantThreshold)
 					continue;
 
-				var deltaM =  (deltaT - threshold * Math.Sign(deltaT)) * scale;
+				var deltaM =  (deltaT - CompliantThreshold * Math.Sign(deltaT)) * scale;
 				m[i] += deltaM / 100f;
 				if (m[i] < limitA) m[i] = limitA;
 				if (m[i] > limitB) m[i] = limitB;
