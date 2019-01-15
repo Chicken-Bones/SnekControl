@@ -92,11 +92,7 @@ namespace SnekControl
 
 			if (DesignerProperties.GetIsInDesignMode(this))
 				return;
-
-			var helixViewportTimer = new DispatcherTimer {Interval = TimeSpan.FromMilliseconds(200)};
-			helixViewportTimer.Tick += (sender, args) => HelixModel.Update();
-			helixViewportTimer.Start();
-
+			
 			new Thread(HelixBackground) {
 				IsBackground = true,
 				Name = "Background Model Thread"

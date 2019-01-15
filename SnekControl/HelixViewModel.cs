@@ -29,8 +29,6 @@ namespace SnekControl
 			Camera.LookDirection = new Vector3D(0, -5, -5);
 		}
 
-		public virtual void Update() {}
-
 		public virtual void UpdateBackground(SynchronizationContext context) {}
 
 		public override string ToString() => Title;
