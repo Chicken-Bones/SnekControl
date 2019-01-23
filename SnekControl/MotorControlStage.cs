@@ -85,8 +85,8 @@ namespace SnekControl
 
 	    private void UpdatePositionalControl(Vector pos, double t)
 	    {
-		    bool posChanged = pos != ControlPosition;
-		    bool tChanged = t != ControlTension;
+		    bool posChanged = Math.Abs((pos - ControlPosition).LengthSquared) > 1e-8;
+		    bool tChanged = Math.Abs(t - ControlTension) > 1e-5;
 
 		    m[0] = (float)Vector.Multiply(cableLocations[0], pos) + t;
 		    m[1] = (float)Vector.Multiply(cableLocations[1], pos) + t;
@@ -151,8 +151,12 @@ namespace SnekControl
 			    _explorationEnabled = value;
 			    OnPropertyChanged();
 
-			    if (_explorationEnabled)
+			    if (_explorationEnabled) {
+					WanderingEnabled = false;
 				    StartExploring();
+				} else {
+					LearnCableEstimations = false;
+				}
 		    }
 	    }
 
@@ -172,8 +176,10 @@ namespace SnekControl
 			    _wanderingEnabled = value;
 			    OnPropertyChanged();
 
-			    if (_wanderingEnabled)
+			    if (_wanderingEnabled) {
+					ExplorationEnabled = false;
 				    StartWandering();
+				}
 		    }
 	    }
 
@@ -237,7 +243,8 @@ namespace SnekControl
 		    get => targetPosition;
 		    set {
 			    if (SetProp(ref targetPosition, value))
-				    MoveToTarget();
+					lock (targettingLock)
+						IsTargetting = true;
 		    }
 	    }
 
@@ -246,6 +253,15 @@ namespace SnekControl
 		    get => isTargetting;
 		    private set => SetProp(ref isTargetting, value);
 	    }
+		
+		private const float velocityLimitMax = 40;
+		public float VelocityLimitMax { get; } = velocityLimitMax;
+
+		private float velocityLimit = velocityLimitMax;
+		public float VelocityLimit {
+			get => velocityLimit;
+			set => SetProp(ref velocityLimit, value);
+		}
 		
 	    private ICommand zeroTensionCommand;
 	    public ICommand ZeroTensionCommand => zeroTensionCommand ?? (zeroTensionCommand = new DelegateCommand(_ => ZeroTensionReadings()));
@@ -259,28 +275,26 @@ namespace SnekControl
 
 	    #region INotifyPropertyChanged
 	    public event PropertyChangedEventHandler PropertyChanged;
-
-	    private readonly Dictionary<string, object> propertyValues = new Dictionary<string, object>();
-	    protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+		
+	    protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null, LinkedList<string> changed = null)
 	    {
-		    object curValue = GetType().GetProperty(propertyName).GetValue(this);
-		    if (propertyValues.TryGetValue(propertyName, out var prevValue)) {
-			    if (curValue.Equals(prevValue))
-				    return;
-		    }
-			propertyValues[propertyName] = curValue;
+			if (changed == null)
+				changed = new LinkedList<string>();
+			if (changed.Contains(propertyName))
+				return;
+			changed.AddLast(propertyName);
 
 		    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
 		    if (propertyName == nameof(ControlPosition)) {
-			    OnPropertyChanged("H");
-			    OnPropertyChanged("V");
+			    OnPropertyChanged(nameof(H), changed);
+			    OnPropertyChanged(nameof(V), changed);
 		    }
 
 		    if (propertyName == nameof(ControlTension) || propertyName == nameof(ControlPosition)) {
-			    OnPropertyChanged("M0");
-			    OnPropertyChanged("M1");
-			    OnPropertyChanged("M2");
+			    OnPropertyChanged(nameof(M0), changed);
+			    OnPropertyChanged(nameof(M1), changed);
+			    OnPropertyChanged(nameof(M2), changed);
 		    }
 
 		    if (propertyName[0] == 'M' || propertyName[0] == 'O') {
@@ -288,25 +302,13 @@ namespace SnekControl
 				    SendServoSignals();
 
 			    if (propertyName[0] == 'M') {
-				    OnPropertyChanged(nameof(ControlPosition));
-				    OnPropertyChanged(nameof(ControlTension));
+				    OnPropertyChanged(nameof(ControlPosition), changed);
+				    OnPropertyChanged(nameof(ControlTension), changed);
 			    }
 
 			    if (propertyName[0] == 'O')
 				    settings?.SetOffsets(Index, mOffset);
 		    }
-
-			if (propertyName == nameof(ExplorationEnabled)) {
-				if ((bool)curValue)
-					WanderingEnabled = false;
-				else
-					LearnCableEstimations = false;
-			}
-
-			if (propertyName == nameof(WanderingEnabled)) {
-				if ((bool)curValue)
-					ExplorationEnabled = false;
-			}
 	    }
 
 	    private bool SetProp<T>(ref T field, T value, [CallerMemberName] string propertyName = null)
@@ -376,6 +378,7 @@ namespace SnekControl
             OnPropertyChanged("T"+i);
         }
 
+		int a = 0;
 	    private void TensionReading(double mv0, double mv1, double mv2, double mv3)
 	    {
 			// currently a wire swap
@@ -396,6 +399,7 @@ namespace SnekControl
 
 			RecordDataPoint(snekConn.SnekTime, s, t, CurrentPosition, expectedTension, TensionInput);
 			UpdateCompliantMotion(expectedTension, externalTension);
+			MoveTowardsTarget();
 	    }
 
 		private void ServoReading(int servo0, int servo1, int servo2, int servo3)
@@ -696,40 +700,28 @@ namespace SnekControl
 		    return true;
 	    }
 
-		private const float maxVelocity = 40;
-		private float targetVelocityCap = maxVelocity;
 		private const int retargettingPeriod = 10;
 		private object targettingLock = new object();
-	    private async void MoveToTarget()
+	    private void MoveTowardsTarget()
 	    {
-		    lock (targettingLock) {
-			    if (IsTargetting)
-				    return;
+			lock (targettingLock) {
+				if (!IsTargetting)
+					return;
 
-			    IsTargetting = true;
-		    }
-			
-			var maxStep = retargettingPeriod / 1000f * targetVelocityCap;
-		    while (true) {
-			    var target = targetPosition;
-			    var currentTarget = target;
-			    var pos = ControlPosition;
-			    var delta = target - pos;
-			    if (delta.Length > maxStep) {
-				    delta *= maxStep / delta.Length;
-				    currentTarget = delta + pos;
-			    }
+				var maxStep = retargettingPeriod / 1000f * VelocityLimit;
+				var target = targetPosition;
+				var pos = ControlPosition;
+				var delta = target - pos;
+				if (delta.Length > maxStep) {
+					delta *= maxStep / delta.Length;
+					target = delta + pos;
+				}
 
-			    ControlPosition = currentTarget;
-			    await Task.Delay(retargettingPeriod);
+				ControlPosition = target;
 
-			    lock (targettingLock) {
-				    if (currentTarget == targetPosition) {
-					    IsTargetting = false;
-					    return;
-				    }
-			    }
-		    }
+				if (target == targetPosition)
+					IsTargetting = false;
+			}
 	    }
 
 	    private bool isWandering;
@@ -794,8 +786,8 @@ namespace SnekControl
 					{
 						jerkiness = rand.Next(100);
 						sleepiness = rand.Next(100);
-						targetVelocityCap = (float)(rand.NextDouble() * 0.75 + 0.25) * maxVelocity;
-						Logger.Log($"Wandering (Jerkiness: {jerkiness}, Sleepiness: {sleepiness}, Velocity: {(int)targetVelocityCap})");
+						VelocityLimit = (float)(rand.NextDouble() * 0.75 + 0.25) * VelocityLimitMax;
+						Logger.Log($"Wandering (Jerkiness: {jerkiness}, Sleepiness: {sleepiness}, Velocity: {(int)VelocityLimit})");
 						lastModeChange.Restart();
 					}
 				    Thread.Sleep(updatePeriod);
@@ -804,7 +796,7 @@ namespace SnekControl
 		    finally {
 			    isWandering = false;
 			    WanderingEnabled = false;
-				targetVelocityCap = maxVelocity;
+				VelocityLimit = VelocityLimitMax;
 		    }
 	    }
 
