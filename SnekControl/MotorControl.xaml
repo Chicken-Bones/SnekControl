@@ -82,6 +82,7 @@
                 <CheckBox Grid.Row="4" Grid.Column="0" IsChecked="{Binding UseMLTension}">RNN Cables</CheckBox>
                 <CheckBox Grid.Row="4" Grid.Column="1" IsChecked="{Binding RecordData}">Record Data</CheckBox>
                 <CheckBox Grid.Row="5" Grid.Column="0" IsChecked="{Binding CompliantMotion}">Compliance</CheckBox>
+                <Button Grid.Row="5" Grid.Column="1" Command="{Binding ExperimentCommand}">Experiment</Button>
                 <StackPanel Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal">
                     <Label Padding="2" VerticalAlignment="Center">Speed:</Label>
                     <xctk:IntegerUpDown Width="45" Height="20" Value="{Binding VelocityLimit}" Minimum="0" Maximum="{Binding VelocityLimitMax}"/>

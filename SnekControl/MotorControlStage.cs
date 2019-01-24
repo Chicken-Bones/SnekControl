@@ -268,9 +268,12 @@ namespace SnekControl
 		
 	    private ICommand relearnTensionCommand;
 	    public ICommand RelearnTensionCommand => relearnTensionCommand ?? (relearnTensionCommand = new DelegateCommand(_ => ResetTensionMap()));
-
+		
 	    private ICommand relearnCablesCommand;
 	    public ICommand RelearnCablesCommand => relearnCablesCommand ?? (relearnCablesCommand = new DelegateCommand(_ => ResetCableEstimations()));
+
+	    private ICommand experimentCommand;
+	    public ICommand ExperimentCommand => experimentCommand ?? (experimentCommand = new DelegateCommand(_ => Experiment1()));
 	    #endregion
 
 	    #region INotifyPropertyChanged
@@ -377,8 +380,7 @@ namespace SnekControl
 	        tensionGraphs[i].AddPoint(new Point(snekConn.SnekTime, t[i]));
             OnPropertyChanged("T"+i);
         }
-
-		int a = 0;
+		
 	    private void TensionReading(double mv0, double mv1, double mv2, double mv3)
 	    {
 			// currently a wire swap
@@ -786,7 +788,7 @@ namespace SnekControl
 					{
 						jerkiness = rand.Next(100);
 						sleepiness = rand.Next(100);
-						VelocityLimit = (float)(rand.NextDouble() * 0.75 + 0.25) * VelocityLimitMax;
+						VelocityLimit = (float)(rand.NextDouble() * 0.9 + 0.1) * VelocityLimitMax * 0.5f;
 						Logger.Log($"Wandering (Jerkiness: {jerkiness}, Sleepiness: {sleepiness}, Velocity: {(int)VelocityLimit})");
 						lastModeChange.Restart();
 					}
@@ -847,6 +849,38 @@ namespace SnekControl
 
 			if (any)
 				OnPropertyChanged("ControlPosition");
+		}
+
+		private async Task MoveTo(Vector position) {
+			TargetPosition = position;
+			await Task.Delay(100);
+			while (IsTargetting)
+				await Task.Delay(1);
+		}
+
+		private async void Experiment1() {
+			VelocityLimit = 5;
+			await MoveTo(new Vector(0, 5));
+			
+			await Task.Delay(5000);
+			VelocityLimit = 2;
+			await MoveTo(new Vector(0, 15));
+			await Task.Delay(2000);
+			await MoveTo(new Vector(0, 5));
+
+			
+			await Task.Delay(5000);
+			VelocityLimit = 5;
+			await MoveTo(new Vector(0, 15));
+			await Task.Delay(2000);
+			await MoveTo(new Vector(0, 5));
+
+			
+			await Task.Delay(5000);
+			VelocityLimit = 20;
+			await MoveTo(new Vector(0, 15));
+			await Task.Delay(2000);
+			await MoveTo(new Vector(0, 5));
 		}
     }
 }
