@@ -9,6 +9,7 @@ import logging
 import sys
 
 
+
 #####################
 # Logging and dir
 #####################
@@ -74,15 +75,12 @@ num_train_batches = int((1-test_size) * num_batches)
 num_test_batches = num_batches - num_train_batches
 
 np.random.seed(0)
-test_batches = np.sort(np.random.choice(range(0, num_batches), num_test_batches, replace=False))
-train_batches = np.delete(range(0, num_batches), test_batches)
+test_batches = np.sort(np.random.choice(range(num_batches), num_test_batches, replace=False))
+train_batches = np.delete(range(num_batches), test_batches)
+batch_indices = [indices[batch*batch_size:(batch+1)*batch_size] for batch in range(num_batches)]
 
 logger.info("train %d test %d", num_train_batches * batch_size, num_test_batches * batch_size)
 logger.info("baseline MSE %.4f", np.mean(np.square(baseline_err)))
-
-
-def batch_indices(batch):
-    return indices[batch*batch_size:(batch+1)*batch_size]
 
 
 #####################
@@ -165,7 +163,7 @@ logger.info("SGD lr=%.2e * %.2f per %d epochs", learning_rate, scheduler.gamma, 
 # if Linear (batch, seq_len*input_dim)
 # linear input is repeated input_dim for each timestep, [[t_0] [t_1] ...]
 def make_batch_tensors(batch):
-    inds = batch_indices(batch)
+    inds = batch_indices[batch]
     if isinstance(model, LSTMModel):
         X = np.concatenate([data_x[i-seq_len:i, None, :] for i in inds], 1)
     else:
@@ -236,7 +234,7 @@ def dump_preds():
     logger.info("performing full eval")
     dump = np.zeros((num_batches * batch_size, 1 + input_dim + 2 * output_dim))
     for batch in range(0, num_batches):
-        inds = batch_indices(batch)
+        inds = batch_indices[batch]
         X, _ = make_batch_tensors(batch)
         y_pred = model(X).cpu().detach().numpy()
 
@@ -288,7 +286,7 @@ for t in range(num_epochs):
             plot_loss_hist()
 
             if t < 100 or t % 100 == 0:
-                y_base = baseline_y[batch_indices(test_batches[0])]
+                y_base = baseline_y[batch_indices[test_batches[0]]]
                 plot_preds_vs_data(y_preds[0], y_tests[0], y_base, dir+"/test%d.png" % t)
 
         if t % 1000 == 0:
