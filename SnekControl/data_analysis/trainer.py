@@ -56,8 +56,7 @@ def add_dataset(name):
     logger.info("loaded %s (%d points)", name, set_data.shape[0])
 
 
-add_dataset('2018-10-24 14-03.csv')
-add_dataset('2018-10-24 15-32.csv')
+add_dataset('2019-01-27 11-55_clean.csv')
 
 data_x = data[:, 1:4]
 data_y = data[:, 4:7]
@@ -81,6 +80,33 @@ batch_indices = [indices[batch*batch_size:(batch+1)*batch_size] for batch in ran
 
 logger.info("train %d test %d", num_train_batches * batch_size, num_test_batches * batch_size)
 logger.info("baseline MSE %.4f", np.mean(np.square(baseline_err)))
+
+
+def plot_preds_vs_data(y_pred, y_data, y_base, filename):
+        plt.figure(figsize=(batch_size / 100, 10 * output_dim))
+        y_pred = y_pred.cpu().detach().numpy()
+        y_data = y_data.cpu().detach().numpy()
+        for p in range(3):
+            plt.subplot(output_dim, 1, p + 1)
+            plt.plot(y_pred[:, p], label="Preds")
+            plt.plot(y_data[:, p], label="Data")
+            plt.plot(y_base[:, p], label="Baseline")
+            plt.legend()
+        plt.savefig(filename, dpi=100)
+        plt.close()
+
+
+#####################
+# Gaussian Process
+#####################
+if False:
+    import gptorch_trainer
+    gptorch_trainer.train(
+        logger, dir, device,
+        data_x, data_y, baseline_y, input_dim, output_dim,
+        train_batches, test_batches, batch_indices, batch_size,
+        plot_preds_vs_data)
+    exit()
 
 
 #####################
@@ -188,27 +214,13 @@ def export_model(filename, verbose=False):
     import onnx
     import caffe2.python.onnx.backend as caffe_backend
     onnx_model = onnx.load(filename)
-    onnx.checker.check_model(onnx_model)
+    #onnx.checker.check_model(onnx_model)
     result2 = caffe_backend.run_model(onnx_model, [dummy_input])[0]
     if not np.isclose(result, result2).all():
         raise Exception("model is not consistent: {} {}".format(result, result2))
 
     onnx_model = onnx.utils.polish_model(onnx_model)
     onnx.save(onnx_model, filename.replace(".onnx", "_opt.onnx"))
-
-
-def plot_preds_vs_data(y_pred, y_data, y_base, filename):
-        plt.figure(figsize=(batch_size / 100, 10 * output_dim))
-        y_pred = y_pred.cpu().detach().numpy()
-        y_data = y_data.cpu().detach().numpy()
-        for p in range(3):
-            plt.subplot(output_dim, 1, p + 1)
-            plt.plot(y_pred[:, p], label="Preds")
-            plt.plot(y_data[:, p], label="Data")
-            plt.plot(y_base[:, p], label="Baseline")
-            plt.legend()
-        plt.savefig(filename, dpi=100)
-        plt.close()
 
 
 #####################
