@@ -137,13 +137,15 @@ def constant_ops(graph, i, n):
         with repeatedlist(graph.node) as l:
             l[i] = make_constant_node(result, n.output)
 
-    elif n.op_type == "ConstantFill":
+    elif n.op_type == "ConstantFill" or n.op_type == "ConstantOfShape":
         shape = get_constant_arr(input_nodes[0])
-        assert attr_by_name(n, "input_as_shape").i == 1
-        with repeatedlist(n.attribute) as l:
-            attr_index = next(i for i, a in enumerate(n.attribute) if a.name == "input_as_shape")
-            l[attr_index] = helper.make_attribute("shape", shape)
         del n.input[:]
+
+        if n.op_type == "ConstantFill":
+            assert attr_by_name(n, "input_as_shape").i == 1
+            #with repeatedlist(n.attribute) as l:
+            #    attr_index = next(i for i, a in enumerate(n.attribute) if a.name == "input_as_shape")
+            #    l[attr_index] = helper.make_attribute("shape", shape)
 
         # past here is assumption heavy
         value = attr_by_name(n, "value").f
