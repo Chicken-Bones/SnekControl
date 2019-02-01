@@ -1,4 +1,5 @@
-﻿using System.Windows.Controls;
+﻿using System;
+using System.Windows.Controls;
 
 namespace SnekControl
 {
@@ -11,5 +12,9 @@ namespace SnekControl
         {
             InitializeComponent();
         }
+
+		internal void Command(string text) {
+			throw new NotImplementedException();
+		}
 	}
 }

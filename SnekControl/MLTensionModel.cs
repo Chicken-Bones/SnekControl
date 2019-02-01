@@ -17,6 +17,7 @@ namespace SnekControl
 
 		static MLTensionModel() {
 			Control.UseNativeMKL();
+			Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.RealTime;
 		}
 
 		public readonly Func<Matrix<float>, Matrix<float>> forward;

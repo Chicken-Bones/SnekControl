@@ -224,8 +224,9 @@ namespace SnekControl
 		    cableTensionEstimation[1].Sample(pos),
 		    cableTensionEstimation[2].Sample(pos));
 		
+		private Vector3 mlTensionCalib;
 	    public Vector3 ExpectedTension => UseMLTension ?
-			mlTensionModel.Eval(snekConn.SnekTime, motorGraphs) :
+			mlTensionModel.Eval(snekConn.SnekTime, motorGraphs) + mlTensionCalib :
 			EstimateTensionAt(CurrentPosition);
 
 	    public Vector TensionInput { get; private set; }
@@ -271,9 +272,6 @@ namespace SnekControl
 		
 	    private ICommand relearnCablesCommand;
 	    public ICommand RelearnCablesCommand => relearnCablesCommand ?? (relearnCablesCommand = new DelegateCommand(_ => ResetCableEstimations()));
-
-	    private ICommand experimentCommand;
-	    public ICommand ExperimentCommand => experimentCommand ?? (experimentCommand = new DelegateCommand(_ => Experiment1()));
 	    #endregion
 
 	    #region INotifyPropertyChanged
@@ -401,6 +399,7 @@ namespace SnekControl
 
 			RecordDataPoint(snekConn.SnekTime, s, t, CurrentPosition, expectedTension, TensionInput);
 			UpdateCompliantMotion(expectedTension, externalTension);
+			UpdateRNNCalibration(externalTension);
 			MoveTowardsTarget();
 	    }
 
@@ -434,7 +433,7 @@ namespace SnekControl
 		    cableTensionEstimation[1].BindSettings("cable1", settings);
 		    cableTensionEstimation[2].BindSettings("cable2", settings);
 			
-			mlTensionModel = new MLTensionModel("data_analysis/model_s.onnx");
+			mlTensionModel = new MLTensionModel("data_analysis/2019-01-28_model_s.onnx");
 	    }
 
 	    public void ConnectTo(SnekConnection snek)
@@ -822,6 +821,7 @@ namespace SnekControl
 				$"{inputPosition.X:0.00}, {inputPosition.Y:0.00}");
 		}
 
+		private bool dangerMode = false;
 		private void UpdateCompliantMotion(Vector3 expectedTension, Vector3 externalTension) {
 			if (!CompliantMotion)
 				return;
@@ -842,13 +842,49 @@ namespace SnekControl
 				var deltaM =  (deltaT - CompliantThreshold * Math.Sign(deltaT)) * scale;
 				m[i] += deltaM / 100f;
 				if (m[i] < limitA) m[i] = limitA;
-				if (m[i] > limitB) m[i] = limitB;
+				if (m[i] > limitB && !dangerMode) m[i] = limitB;
 
 				any = true;
 			}
 
 			if (any)
 				OnPropertyChanged("ControlPosition");
+		}
+
+		internal void Command(string text) {
+			if (text == "exp1")
+				Experiment1();
+			if (text == "exp2")
+				Experiment2();
+			if (text == "calib")
+				CalibrateRNN();
+			if (text.StartsWith("model "))
+				mlTensionModel = new MLTensionModel($"data_analysis/{text.Substring(6)}.onnx");
+			if (text == "danger") {
+				dangerMode = !dangerMode;
+				Logger.Log($"Danger Mode: {dangerMode}");
+			}
+		}
+
+		private void CalibrateRNN() {
+			rnnCalibrating = !rnnCalibrating;
+			if (rnnCalibrating) {
+				rnnCalib = new Vector3();
+				rnnCalibCount = 0;
+			}
+			Logger.Log("RNN calibration: "+(rnnCalibrating ? "On" : "Off"));
+		}
+
+		private bool rnnCalibrating = false;
+		private Vector3 rnnCalib;
+		private int rnnCalibCount;
+		private void UpdateRNNCalibration(Vector3 externalTension) {
+			if (!rnnCalibrating)
+				return;
+
+			rnnCalib += externalTension + mlTensionCalib;
+			rnnCalibCount++;
+			mlTensionCalib = rnnCalib / rnnCalibCount;
 		}
 
 		private async Task MoveTo(Vector position) {
@@ -859,6 +895,7 @@ namespace SnekControl
 		}
 
 		private async void Experiment1() {
+			Logger.Log("Starting Experiment 1");
 			VelocityLimit = 5;
 			await MoveTo(new Vector(0, 5));
 			
@@ -881,6 +918,38 @@ namespace SnekControl
 			await MoveTo(new Vector(0, 15));
 			await Task.Delay(2000);
 			await MoveTo(new Vector(0, 5));
+		}
+
+		private bool experimenting2 = false;
+		private async void Experiment2() {
+			if (experimenting2) {
+				experimenting2 = false;
+				return;
+			}
+			
+			experimenting2 = true;
+			Logger.Log("Starting Experiment 2");
+
+			await MoveTo(new Vector(0, 0));
+			var rand = new Random();
+			bool up = true;
+			int y = 0;
+			while (experimenting2) {
+				VelocityLimit = rand.Next(3, 20);
+				if (up)
+					y = rand.Next(y + 1, 45);
+				else
+					y = rand.Next(0, y-1);
+
+				await MoveTo(new Vector(0, y));
+				await Task.Delay(rand.Next(200, 2000));
+				if (y == (up ? 45 : 0))
+					up = !up;
+			}
+			
+			Logger.Log("Stopping Experiment 2");
+			VelocityLimit = 5;
+			await MoveTo(new Vector(0, 0));
 		}
     }
 }

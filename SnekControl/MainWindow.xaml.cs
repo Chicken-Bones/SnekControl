@@ -9,6 +9,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 using HelixToolkit.Wpf.SharpDX;
 
@@ -210,6 +211,13 @@ namespace SnekControl
 			if (connected) {
 				foreach (var graph in Graphs)
 					graph.Clear();
+			}
+		}
+
+		private void CommandKeyDown(object sender, KeyEventArgs e) {
+			if (e.Key == Key.Return) {
+				stage0.Command(((TextBox)sender).Text);
+				((TextBox)sender).Text = "";
 			}
 		}
 	}

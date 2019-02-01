@@ -21,6 +21,7 @@
                 <RowDefinition Height="3*" />
                 <RowDefinition Height="5" />
                 <RowDefinition Height="*" />
+                <RowDefinition Height="20" />
             </Grid.RowDefinitions>
             <GroupBox Grid.Row="0" Header="Port" Padding="0,5,0,0" BorderBrush="#FF929EA4" HorizontalAlignment="Left" VerticalAlignment="Top">
                 <StackPanel Orientation="Vertical">
@@ -71,6 +72,7 @@
             </StatusBar>
             <GridSplitter Grid.Row="2" HorizontalAlignment="Stretch" Background="Gray" />
             <TextBox Grid.Row="3" x:Name="textBoxLog" Background="White" AcceptsReturn="True" Text="Line1&#xD;&#xA;Line2" IsReadOnly="True" VerticalScrollBarVisibility="Auto" ScrollViewer.CanContentScroll="True" TextChanged="textBoxLog_TextChanged" MaxLines="10000"/>
+            <TextBox Grid.Row="4" KeyDown="CommandKeyDown"/>
         </Grid>
         <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="Gray" />
         <Grid Grid.Column="2">
