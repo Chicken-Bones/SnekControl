@@ -36,7 +36,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #####################
 seq_len = 100
 test_size = 0.2
-batch_size = 10000
+batch_size = 20000
 
 data = None
 indices = None
@@ -83,17 +83,17 @@ logger.info("baseline MSE %.4f", np.mean(np.square(baseline_err)))
 
 
 def plot_preds_vs_data(y_pred, y_data, y_base, filename):
-        plt.figure(figsize=(batch_size / 100, 10 * output_dim))
-        y_pred = y_pred.cpu().detach().numpy()
-        y_data = y_data.cpu().detach().numpy()
-        for p in range(3):
-            plt.subplot(output_dim, 1, p + 1)
-            plt.plot(y_pred[:, p], label="Preds")
-            plt.plot(y_data[:, p], label="Data")
-            plt.plot(y_base[:, p], label="Baseline")
-            plt.legend()
-        plt.savefig(filename, dpi=100)
-        plt.close()
+    plt.figure(figsize=(batch_size / 100, 10 * output_dim))
+    y_pred = y_pred.cpu().detach().numpy()
+    y_data = y_data.cpu().detach().numpy()
+    for p in range(3):
+        plt.subplot(output_dim, 1, p + 1)
+        plt.plot(y_pred[:, p], label="Preds")
+        plt.plot(y_data[:, p], label="Data")
+        plt.plot(y_base[:, p], label="Baseline")
+        plt.legend()
+    plt.savefig(filename, dpi=100)
+    plt.close()
 
 
 #####################
@@ -108,34 +108,15 @@ if False:
         plot_preds_vs_data)
     exit()
 
-
-#####################
-# Network params
-#####################
-lstm_dim = 64
-lstm_layers = 1
-linear_dim = [output_dim]
-learning_rate = 5e-3
-num_epochs = 10000
-
 #####################
 # Define model
 #####################
 
 
 class LSTMModel(nn.Module):
-    def __init__(self, input_dim, lstm_dim, lstm_layers, linear_dim):
+    def __init__(self, input_dim, lstm_dim, lstm_layers):
         super(LSTMModel, self).__init__()
-
         self.lstm = nn.LSTM(input_dim, lstm_dim, lstm_layers)
-
-        prev_dim = lstm_dim
-        self.linear = nn.ModuleList()
-        for d in linear_dim:
-            self.linear.append(nn.Linear(prev_dim, d))
-            prev_dim = d
-
-        logger.info("LSTM %dx%d, Linear %s", lstm_dim, lstm_layers, linear_dim)
 
     def forward(self, input: torch.Tensor):
         y = input
@@ -143,54 +124,36 @@ class LSTMModel(nn.Module):
             y = y.unsqueeze(1)
 
         lstm_out, _ = self.lstm(y)
-        y = lstm_out[-1]
-
-        for l in self.linear:
-            y = l(y)
-        return y
+        return lstm_out[-1]
 
 
-class SigmoidModel(nn.Module):
-    def __init__(self, input_dim, linear_dim):
-        super(SigmoidModel, self).__init__()
-
-        self.linear = nn.ModuleList()
-        for d in linear_dim:
-            self.linear.append(nn.Linear(input_dim, d))
-            input_dim = d
-
-        logger.info("Sigmoid Linear %s", linear_dim)
-
-    def forward(self, input: torch.Tensor):
-        sigmoid = nn.Sigmoid()
-        y = input
-        for i, l in enumerate(self.linear):
-            if i > 0:
-                y = sigmoid(y)
-            y = l(y)
-        return y
-
-
-if lstm_layers > 0:
-    model = LSTMModel(input_dim, lstm_dim, lstm_layers, linear_dim)
-else:
-    model = SigmoidModel(input_dim*seq_len, linear_dim)
+flatten = True
+model = nn.Sequential(
+    #LSTMModel(input_dim, lstm_dim, lstm_layers),
+    nn.Linear(input_dim*seq_len, 64),
+    nn.Sigmoid(),
+    nn.Linear(64, output_dim)
+)
 
 model = model.to(device)
 
 loss_fn = torch.nn.MSELoss()
 #optimiser = torch.optim.Adam(model.parameters(), lr=learning_rate / 2)
-optimiser = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
-scheduler = torch.optim.lr_scheduler.StepLR(optimiser, step_size=500, gamma=0.5)
-logger.info("SGD lr=%.2e * %.2f per %d epochs", learning_rate, scheduler.gamma, scheduler.step_size)
+optimiser = torch.optim.SGD(model.parameters(), lr=5e-3, momentum=0.9)
+scheduler = torch.optim.lr_scheduler.StepLR(optimiser, step_size=200, gamma=0.5)
+num_epochs = 3000
+
+logger.info(model)
+logger.info(optimiser)
+logger.info("StepLR(step_size=%d, gamma=%.2f)", scheduler.step_size, scheduler.gamma)
 
 
-# if LSTM (seq_len, batch, input_dim)
-# if Linear (batch, seq_len*input_dim)
+# if not flatten (seq_len, batch, input_dim)
+# if flatten (batch, seq_len*input_dim)
 # linear input is repeated input_dim for each timestep, [[t_0] [t_1] ...]
 def make_batch_tensors(batch):
     inds = batch_indices[batch]
-    if isinstance(model, LSTMModel):
+    if not flatten:
         X = np.concatenate([data_x[i-seq_len:i, None, :] for i in inds], 1)
     else:
         X = np.stack([data_x[i-seq_len:i, :].flatten() for i in inds])
@@ -202,7 +165,7 @@ def make_batch_tensors(batch):
 
 def export_model(filename, verbose=False):
     dummy_input = torch.linspace(0, 2, steps=seq_len*output_dim, device=device).reshape(seq_len, output_dim)
-    if not isinstance(model, LSTMModel):
+    if flatten:
         dummy_input = dummy_input.flatten()
 
     torch.onnx.export(model, dummy_input, filename, verbose=verbose)
@@ -214,7 +177,6 @@ def export_model(filename, verbose=False):
     import onnx
     import caffe2.python.onnx.backend as caffe_backend
     onnx_model = onnx.load(filename)
-    #onnx.checker.check_model(onnx_model)
     result2 = caffe_backend.run_model(onnx_model, [dummy_input])[0]
     if not np.isclose(result, result2).all():
         raise Exception("model is not consistent: {} {}".format(result, result2))
@@ -261,7 +223,7 @@ def dump_preds():
     logger.info("complete")
 
 
-for t in range(num_epochs):
+for t in range(num_epochs+1):
     scheduler.step()
     model.train()
     for batch in train_batches:
