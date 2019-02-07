@@ -7,8 +7,16 @@ import os
 import datetime
 import logging
 import sys
+import argparse
 
-
+parser = argparse.ArgumentParser(description='Tension Estimator Trainer.')
+parser.add_argument('--seq_len', type=int, default=100)
+parser.add_argument('--batch_size', type=int, default=20000)
+parser.add_argument('--step_size', type=int, default=None)
+parser.add_argument('--hidden_dim', type=int, default=64)
+parser.add_argument('--lstm', dest='model', action='store_const', const='LSTM')
+parser.add_argument('--sigmoid', dest='model', action='store_const', const='Sigmoid')
+args = parser.parse_args()
 
 #####################
 # Logging and dir
@@ -29,14 +37,17 @@ handler = logging.StreamHandler(sys.stdout)
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
+logger.info('Args: %s', args)
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+logger.info('Device: %s', device)
 
 #####################
 # Load data
 #####################
-seq_len = 100
+seq_len = args.seq_len
 test_size = 0.2
-batch_size = 20000
+batch_size = args.batch_size
 
 data = None
 indices = None
@@ -127,21 +138,33 @@ class LSTMModel(nn.Module):
         return lstm_out[-1]
 
 
-flatten = True
-model = nn.Sequential(
-    #LSTMModel(input_dim, lstm_dim, lstm_layers),
-    nn.Linear(input_dim*seq_len, 64),
-    nn.Sigmoid(),
-    nn.Linear(64, output_dim)
-)
+step_size = args.step_size
+if args.model == 'LSTM':
+    flatten = False
+    model = nn.Sequential(
+        LSTMModel(input_dim, args.hidden_dim, 1),
+        nn.Linear(args.hidden_dim, output_dim)
+    )
+    if step_size is None:
+        step_size = 500
+
+if args.model == 'Sigmoid':
+    flatten = True
+    model = nn.Sequential(
+        nn.Linear(input_dim*seq_len, args.hidden_dim),
+        nn.Sigmoid(),
+        nn.Linear(args.hidden_dim, output_dim)
+    )
+    if step_size is None:
+        step_size = 200
+
 
 model = model.to(device)
 
 loss_fn = torch.nn.MSELoss()
 #optimiser = torch.optim.Adam(model.parameters(), lr=learning_rate / 2)
 optimiser = torch.optim.SGD(model.parameters(), lr=5e-3, momentum=0.9)
-scheduler = torch.optim.lr_scheduler.StepLR(optimiser, step_size=200, gamma=0.5)
-num_epochs = 3000
+scheduler = torch.optim.lr_scheduler.StepLR(optimiser, step_size=step_size, gamma=0.5)
 
 logger.info(model)
 logger.info(optimiser)
@@ -223,6 +246,7 @@ def dump_preds():
     logger.info("complete")
 
 
+num_epochs = step_size*6
 for t in range(num_epochs+1):
     scheduler.step()
     model.train()
@@ -237,33 +261,35 @@ for t in range(num_epochs+1):
 
     hist_train.append(loss.item())
     model.eval()
-    if t % 10 == 0:
-        with torch.no_grad():
-            y_preds = []
-            y_tests = []
-            for batch in test_batches:
-                X_test, y_test = make_batch_tensors(batch)
-                y_preds.append(model(X_test))
-                y_tests.append(y_test)
+    if t % 10 != 0:
+        continue
 
-            y_test = torch.cat(y_tests)
-            y_pred = torch.cat(y_preds)
+    with torch.no_grad():
+        y_preds = []
+        y_tests = []
+        for batch in test_batches:
+            X_test, y_test = make_batch_tensors(batch)
+            y_preds.append(model(X_test))
+            y_tests.append(y_test)
 
-            np.set_printoptions(precision=4)
-            loss_test = np.mean(np.square((y_pred - y_test).cpu().detach().numpy()), axis=0)
-            loss_test_total = np.mean(loss_test)
+        y_test = torch.cat(y_tests)
+        y_pred = torch.cat(y_preds)
 
-            logger.info("Epoch %d MSE Train: %.4f, Test %.4f %s", t, loss.item(), loss_test_total, loss_test)
-            export_model(dir+'/model.onnx')
+        np.set_printoptions(precision=4)
+        loss_test = np.mean(np.square((y_pred - y_test).cpu().detach().numpy()), axis=0)
+        loss_test_total = np.mean(loss_test)
 
-            # update histogram
-            plot_loss_hist()
+        logger.info("Epoch %d MSE Train: %.4f, Test %.4f %s", t, loss.item(), loss_test_total, loss_test)
+        export_model(dir+'/model.onnx')
 
-            if t < 100 or t % 100 == 0:
-                y_base = baseline_y[batch_indices[test_batches[0]]]
-                plot_preds_vs_data(y_preds[0], y_tests[0], y_base, dir+"/test%d.png" % t)
+        # update histogram
+        plot_loss_hist()
 
-        if t % 1000 == 0:
+        if t < 100 or t % (step_size//5) == 0:
+            y_base = baseline_y[batch_indices[test_batches[0]]]
+            plot_preds_vs_data(y_preds[0], y_tests[0], y_base, dir+"/test%d.png" % t)
+
+        if t % step_size == 0:
             dump_preds()
 
 
