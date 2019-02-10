@@ -22,8 +22,13 @@ args = parser.parse_args()
 # Logging and dir
 #####################
 
-dir = 'run'+datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
-os.mkdir(dir)
+while True:
+    try:
+        dir = 'run'+datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+        os.mkdir(dir)
+        break
+    except FileExistsError:
+        None
 
 logger = logging.getLogger('main')
 logger.setLevel(logging.DEBUG)
