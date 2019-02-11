@@ -1,3 +1,8 @@
+*.lnk
+*.csv
+*.png
+log.txt
+
 # User-specific files
 *.suo
 *.user
@@ -31,21 +36,3 @@ bld/
 # Workspaces
 .idea
 .vs
-
-# PSoC
-codegentemp
-CortexM0
-Export
-Generated_Source
-ComponentUpdateLog.txt
-
-# PSoC generated files
-*.cycdx
-*.cyfit
-*.rpt
-*.svd
-*.html
-*.log
-# PSoC user files
-*.cywrk*
-*.cyprj.*

@@ -1,0 +1,18 @@
+# PSoC
+codegentemp
+CortexM0
+Export
+Generated_Source
+ComponentUpdateLog.txt
+ARM_GCC*
+
+# PSoC generated files
+*.cycdx
+*.cyfit
+*.rpt
+*.svd
+*.html
+*.log
+# PSoC user files
+*.cywrk*
+*.cyprj.*
