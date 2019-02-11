@@ -20,10 +20,11 @@ with open('aggregate.csv', 'w', newline='') as out_file:
 
         (hidden_dim, model, seq_len) = m.groups()
 
-        for m in re.finditer("Epoch (\d+) MSE Train: ([\d.]+), Test ([\d.]+)", text):
+        for m in re.finditer("\[([\d:]+)\] Epoch (\d+) MSE Train: ([\d.]+), Test ([\d.]+)", text):
+
             pass
 
-        (epochs, train, test) = m.groups()
+        (_, epochs, train, test) = m.groups()
 
         csvw.writerow([dir_name[3:], model, hidden_dim, seq_len, epochs, train, test])
 
