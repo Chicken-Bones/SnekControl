@@ -28,7 +28,7 @@ while True:
         os.mkdir(dir)
         break
     except FileExistsError:
-        None
+        pass
 
 logger = logging.getLogger('main')
 logger.setLevel(logging.DEBUG)
@@ -129,39 +129,41 @@ if False:
 #####################
 
 
-class LSTMModel(nn.Module):
-    def __init__(self, input_dim, lstm_dim, lstm_layers):
-        super(LSTMModel, self).__init__()
-        self.lstm = nn.LSTM(input_dim, lstm_dim, lstm_layers)
+class RNNWrapper(nn.Module):
+    def __init__(self, inner):
+        super(RNNWrapper, self).__init__()
+        self.inner = inner
 
     def forward(self, input: torch.Tensor):
         y = input
         if len(y.shape) == 2:
             y = y.unsqueeze(1)
 
-        lstm_out, _ = self.lstm(y)
-        return lstm_out[-1]
+        h, c = self.inner(y)
+        return h[-1]
 
 
 step_size = args.step_size
 if args.model == 'LSTM':
     flatten = False
-    model = nn.Sequential(
-        LSTMModel(input_dim, args.hidden_dim, 1),
-        nn.Linear(args.hidden_dim, output_dim)
-    )
     if step_size is None:
         step_size = 500
 
+    model = nn.Sequential(
+        RNNWrapper(nn.LSTM(input_dim, args.hidden_dim)),
+        nn.Linear(args.hidden_dim, output_dim)
+    )
+
 if args.model == 'Sigmoid':
     flatten = True
+    if step_size is None:
+        step_size = 200
+
     model = nn.Sequential(
         nn.Linear(input_dim*seq_len, args.hidden_dim),
         nn.Sigmoid(),
         nn.Linear(args.hidden_dim, output_dim)
     )
-    if step_size is None:
-        step_size = 200
 
 
 model = model.to(device)
@@ -169,11 +171,14 @@ model = model.to(device)
 loss_fn = torch.nn.MSELoss()
 #optimiser = torch.optim.Adam(model.parameters(), lr=learning_rate / 2)
 optimiser = torch.optim.SGD(model.parameters(), lr=5e-3, momentum=0.9)
-scheduler = torch.optim.lr_scheduler.StepLR(optimiser, step_size=step_size, gamma=0.5)
+#scheduler = torch.optim.lr_scheduler.StepLR(optimiser, step_size=step_size, gamma=0.5)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimiser, gamma=0.5, milestones=
+        [step_size, 2*step_size, 3*step_size, 3.2*step_size, 3.4*step_size, 3.6*step_size, 3.8*step_size, 4.0*step_size])
+num_epochs = int(step_size*4.2)
 
 logger.info(model)
 logger.info(optimiser)
-logger.info("StepLR(step_size=%d, gamma=%.2f)", scheduler.step_size, scheduler.gamma)
+logger.info("MultiStepLR(gamma=%.2f)", scheduler.gamma)
 
 
 # if not flatten (seq_len, batch, input_dim)
@@ -251,7 +256,6 @@ def dump_preds():
     logger.info("complete")
 
 
-num_epochs = step_size*6
 for t in range(num_epochs+1):
     scheduler.step()
     model.train()
