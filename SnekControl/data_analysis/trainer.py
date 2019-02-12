@@ -80,9 +80,9 @@ add_dataset('2019-01-27 11-55_clean.csv')
 
 data_x = data[:, 1:4]
 data_y = data[:, 4:7]
-baseline_err = data[:, 7:10]
-baseline_err -= np.mean(baseline_err, axis=0).reshape(1, -1)
-baseline_y = data_y - baseline_err
+#baseline_err = data[:, 7:10]
+#baseline_err -= np.mean(baseline_err, axis=0).reshape(1, -1)
+#baseline_y = data_y - baseline_err
 
 input_dim = data_x.shape[1]
 output_dim = data_y.shape[1]
@@ -99,10 +99,10 @@ train_batches = np.delete(range(num_batches), test_batches)
 batch_indices = [indices[batch*batch_size:(batch+1)*batch_size] for batch in range(num_batches)]
 
 logger.info("train %d test %d", num_train_batches * batch_size, num_test_batches * batch_size)
-logger.info("baseline MSE %.4f", np.mean(np.square(baseline_err)))
+#logger.info("baseline MSE %.4f", np.mean(np.square(baseline_err)))
 
 
-def plot_preds_vs_data(y_pred, y_data, y_base, filename):
+def plot_preds_vs_data(y_pred, y_data, filename):
     plt.figure(figsize=(batch_size / 100, 10 * output_dim))
     y_pred = y_pred.cpu().detach().numpy()
     y_data = y_data.cpu().detach().numpy()
@@ -110,7 +110,6 @@ def plot_preds_vs_data(y_pred, y_data, y_base, filename):
         plt.subplot(output_dim, 1, p + 1)
         plt.plot(y_pred[:, p], label="Preds")
         plt.plot(y_data[:, p], label="Data")
-        plt.plot(y_base[:, p], label="Baseline")
         plt.legend()
     plt.savefig(filename, dpi=100)
     plt.close()
@@ -240,22 +239,16 @@ def export_model(filename, verbose=False):
 #####################
 
 hist_train = []
-hist_test_x = []
-hist_test_y = []
-
-
+hist_test = []
 def plot_loss_hist():
-    hist_test_x.append(t)
-    hist_test_y.append(loss_test_total)
-    plt.semilogy(hist_train[:t], label="Training loss")
-    plt.semilogy(hist_test_x, hist_test_y, label="Test loss")
+    plt.semilogy(hist_train, label="Training loss")
+    plt.semilogy(hist_test, label="Test loss")
     plt.legend()
     plt.savefig(dir + "/loss.png")
     plt.close()
 
 
 def dump_preds():
-    logger.info("performing full eval")
     dump = np.zeros((num_batches * batch_size, 1 + input_dim + 2 * output_dim))
     for batch in range(0, num_batches):
         inds = batch_indices[batch]
@@ -270,52 +263,51 @@ def dump_preds():
 
     logger.info("saving eval.csv")
     np.savetxt(dir+'/eval.csv', dump, fmt='%.4f', delimiter=', ')
-    logger.info("complete")
 
 
 for t in range(num_epochs+1):
     scheduler.step()
     model.train()
     for batch in train_batches:
-        X_train, y_train = make_batch_tensors(batch)
-
         optimiser.zero_grad()
+        X_train, y_train = make_batch_tensors(batch)
         y_pred = model(X_train)
         loss = loss_fn(y_pred, y_train)
         loss.backward()
         optimiser.step()
 
-    hist_train.append(loss.item())
-    model.eval()
     if t % 10 != 0:
         continue
 
+    model.eval()
     with torch.no_grad():
-        y_preds = []
-        y_tests = []
-        for batch in test_batches:
-            X_test, y_test = make_batch_tensors(batch)
-            y_preds.append(model(X_test))
-            y_tests.append(y_test)
+        def eval(batches):
+            batch_mse = []
+            for batch in batches:
+                X, y = make_batch_tensors(batch)
+                y_pred = model(X)
+                batch_mse.append(torch.mean((y - y_pred)**2, 0))
+            mse = torch.mean(torch.stack(batch_mse), 0)
+            return mse.cpu().detach().numpy(), float(torch.mean(mse))
 
-        y_test = torch.cat(y_tests)
-        y_pred = torch.cat(y_preds)
+        _, mse_train_total = eval(train_batches)
+        mse_test, mse_test_total = eval(test_batches)
 
         np.set_printoptions(precision=4)
-        loss_test = np.mean(np.square((y_pred - y_test).cpu().detach().numpy()), axis=0)
-        loss_test_total = np.mean(loss_test)
-
-        logger.info("Epoch %d MSE Train: %.4f, Test %.4f %s", t, loss.item(), loss_test_total, loss_test)
+        logger.info("Epoch %d MSE Train: %.4f, Test %.4f %s", t, mse_train_total, mse_test_total, mse_test)
         export_model(dir+'/model.onnx')
 
         # update histogram
+        hist_train.append(mse_train_total)
+        hist_test.append(mse_test_total)
         plot_loss_hist()
 
         if t < 100 or t % (step_size//5) == 0:
-            y_base = baseline_y[batch_indices[test_batches[0]]]
-            plot_preds_vs_data(y_preds[0], y_tests[0], y_base, dir+"/test%d.png" % t)
+            X_test, y_test = make_batch_tensors(test_batches[0])
+            y_pred = model(X_test)
+            plot_preds_vs_data(y_pred, y_test, dir+"/test%d.png" % t)
 
-        if t % step_size == 0:
+        if t % (step_size//5) == 0:
             dump_preds()
 
 
