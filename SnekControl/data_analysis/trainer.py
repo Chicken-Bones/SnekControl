@@ -13,6 +13,7 @@ parser = argparse.ArgumentParser(description='Tension Estimator Trainer.')
 parser.add_argument('--seq_len', type=int, default=100)
 parser.add_argument('--batch_size', type=int, default=20000)
 parser.add_argument('--hidden_dim', type=int, default=64)
+parser.add_argument('--dropout', type=float, default=0)
 parser.add_argument('--lstm', dest='model', action='store_const', const='LSTM')
 parser.add_argument('--gru', dest='model', action='store_const', const='GRU')
 parser.add_argument('--sigmoid', dest='model', action='store_const', const='Sigmoid')
@@ -143,55 +144,49 @@ class GLU(nn.Module):
         return nn.functional.glu(input, dim=1)
 
 
-step_size = args.step_size
+layers = []
 if args.model == 'LSTM' or args.model == 'GRU':
     prepare_shape = lambda X: X.transpose([1, 0, 2])
+    step_size = 500
 
-    if step_size is None:
-        step_size = 500
-
-    model = nn.Sequential(
+    layers = [
         nn.LSTM(input_dim, args.hidden_dim) if args.model == 'LSTM' else
         nn.GRU(input_dim, args.hidden_dim),
-
         TakeLastHidden(),
         nn.Linear(args.hidden_dim, output_dim)
-    )
+    ]
 
 if args.model == 'Sigmoid':
     prepare_shape = lambda X: X.reshape(X.shape[0], -1)
+    step_size = 200
 
-    if step_size is None:
-        step_size = 200
-
-    model = nn.Sequential(
+    layers = [
         nn.Linear(input_dim*seq_len, args.hidden_dim),
         nn.Sigmoid(),
         nn.Linear(args.hidden_dim, output_dim)
-    )
+    ]
 
 if args.model == 'Encoder':
     prepare_shape = lambda X: X.transpose([0, 2, 1])
-
-    if step_size is None:
-        step_size = 200
+    step_size = 200
 
     features = args.hidden_dim
     stack_size = 10
     kernel_size = 3
     features_in = input_dim
-    models = []
     for i in range(stack_size):
-        models.extend([
+        layers.extend([
             nn.Conv1d(features_in, features * 2, 3, padding=1),
             GLU()
         ])
         features_in = features
 
-    models.append(nn.Linear(features, output_dim))
-    model = nn.Sequential(*models)
+    layers.append(nn.Linear(features, output_dim))
 
+if args.dropout != 0:
+    layers.insert(-1, nn.Dropout(p=args.dropout))
 
+model = nn.Sequential(*layers)
 model = model.to(device)
 
 loss_fn = torch.nn.MSELoss()
