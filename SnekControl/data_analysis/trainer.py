@@ -18,6 +18,7 @@ parser.add_argument('--lstm', dest='model', action='store_const', const='LSTM')
 parser.add_argument('--gru', dest='model', action='store_const', const='GRU')
 parser.add_argument('--sigmoid', dest='model', action='store_const', const='Sigmoid')
 parser.add_argument('--encoder', dest='model', action='store_const', const='Encoder')
+parser.add_argument('--gpu', type=int, default=0)
 
 
 args = parser.parse_args()
@@ -48,7 +49,7 @@ logger.addHandler(handler)
 
 logger.info('Args: %s', args)
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:"+str(args.gpu) if torch.cuda.is_available() else "cpu")
 logger.info('Device: %s', device)
 
 #####################
